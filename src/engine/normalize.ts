@@ -1,8 +1,10 @@
 // Content normalization for hostile / awkward HTML (spec §4.3, QE-1419/20/21/22).
 //
 // Arbitrary HTML fights column pagination in a few predictable ways. We
-// normalize those cases *before* wrapping the content into the multicol flow so
-// the browser's own fragmentation can then do the heavy lifting.
+// normalize those cases so the browser's own fragmentation can then do the
+// heavy lifting. `normalizeContent` is idempotent and runs on every layout
+// pass (not just once at setup), so script-injected content is normalized too
+// (spec §3.4).
 
 const BASE_STYLE_ID = "pager-base-style";
 
@@ -39,55 +41,61 @@ export function injectBaseStyle(doc: Document, pageWidth: number, pageHeight: nu
 }
 
 /**
- * Detect and unwrap a single top-level `height:100%`/`100vh` scroll container
- * (SPA shells, app-style layouts). Such a container holds all its content in
- * one non-flowing viewport-height box, which produces exactly one page. We
- * neutralize the height and overflow so the content flows into columns
- * (QE-1422).
+ * Is `el` a full-height box that traps its overflow — an SPA/app shell that
+ * would otherwise collapse the whole document to one page (QE-1422)?
+ *
+ * Detection is by *measurement*, not by matching CSS height strings: computed
+ * style resolves height to px, so string checks like `=== "100vh"` never fire.
+ * We instead look for a box that (a) clips or scrolls its overflow and (b) is
+ * about a viewport tall yet holds more content than it shows. This catches
+ * `100vh` / `100%` / `dvh` / `calc(...)` shells alike, at any nesting depth.
  */
-export function unwrapScrollContainers(doc: Document): number {
-  const win = doc.defaultView;
-  if (!win) return 0;
-  const viewportH = win.innerHeight;
-  let unwrapped = 0;
-
-  // Only consider elements near the top of the tree; a deep inner scroller is
-  // usually intentional and small. We walk body's descendants but stop
-  // descending once we've neutralized an ancestor.
-  const candidates: Element[] = [doc.body, ...Array.from(doc.body.children)];
-  for (const el of candidates) {
-    if (!(el instanceof win.HTMLElement)) continue;
-    const cs = win.getComputedStyle(el);
-    const overflowY = cs.overflowY;
-    const scrolls = overflowY === "auto" || overflowY === "scroll";
-    const h = el.getBoundingClientRect().height;
-    const nearViewportHeight = Math.abs(h - viewportH) <= 2 || cs.height === "100vh" || cs.height === "100%";
-    if (scrolls && nearViewportHeight) {
-      el.style.setProperty("height", "auto", "important");
-      el.style.setProperty("max-height", "none", "important");
-      el.style.setProperty("overflow", "visible", "important");
-      unwrapped++;
-    }
-  }
-  return unwrapped;
+function isScrollTrap(el: HTMLElement, win: Window, viewportH: number): boolean {
+  const overflowY = win.getComputedStyle(el).overflowY;
+  const traps = overflowY === "auto" || overflowY === "scroll" || overflowY === "hidden";
+  if (!traps) return false;
+  const clientH = el.clientHeight;
+  // "About a viewport tall": a genuine shell, not a small inline scroller.
+  const isViewportSized = clientH >= viewportH * 0.75;
+  // "Holds more than it shows": overflow is actually being clipped/scrolled.
+  const clipsContent = el.scrollHeight > clientH + 1;
+  return isViewportSized && clipsContent;
 }
 
 /**
- * Normalize `position: fixed` and `position: sticky` elements to `absolute`.
- * Fixed/sticky positioning is inconsistent inside CSS columns across engines
- * (spec §4.3, QE-1421); pinning them to `absolute` keeps them on the page they
- * belong to instead of floating over every page or breaking the column box.
- * Runs on the content once it is inside the flow.
+ * Normalize the flow's content in place. Idempotent, so it is safe to run on
+ * every layout pass:
+ *
+ *  - **Scroll-trap shells (QE-1422):** neutralize height/overflow so the
+ *    trapped content flows into columns instead of collapsing to one page.
+ *  - **Fixed / sticky (QE-1421):** convert to `absolute` (fixed/sticky are
+ *    inconsistent inside CSS columns across engines) AND drop the author's
+ *    inset offsets, so the element stays at its static position — on the page
+ *    it belongs to — rather than being pinned to the containing block's origin.
  */
-export function normalizePositioning(root: HTMLElement, win: Window): number {
-  let changed = 0;
-  const all = root.querySelectorAll<HTMLElement>("*");
-  for (const el of all) {
-    const pos = win.getComputedStyle(el).position;
-    if (pos === "fixed" || pos === "sticky") {
+export function normalizeContent(root: HTMLElement, win: Window): void {
+  const viewportH = win.innerHeight;
+  // The content window's own HTMLElement constructor (elements live in that
+  // realm, so the parent realm's HTMLElement would not match).
+  const HTMLElementCtor = (win as unknown as { HTMLElement: typeof HTMLElement }).HTMLElement;
+  for (const el of root.querySelectorAll<HTMLElement>("*")) {
+    if (!(el instanceof HTMLElementCtor)) continue;
+    const position = win.getComputedStyle(el).position;
+
+    if (position === "fixed" || position === "sticky") {
       el.style.setProperty("position", "absolute", "important");
-      changed++;
+      // Auto insets => the absolute box renders at its static (in-flow)
+      // position instead of being yanked to the containing block's edge.
+      el.style.setProperty("top", "auto", "important");
+      el.style.setProperty("right", "auto", "important");
+      el.style.setProperty("bottom", "auto", "important");
+      el.style.setProperty("left", "auto", "important");
+    }
+
+    if (isScrollTrap(el, win, viewportH)) {
+      el.style.setProperty("height", "auto", "important");
+      el.style.setProperty("max-height", "none", "important");
+      el.style.setProperty("overflow", "visible", "important");
     }
   }
-  return changed;
 }

@@ -135,6 +135,36 @@ class PagerHarness {
     for (const el of this.flow.querySelectorAll(`[${MARK_ATTR}]`)) el.removeAttribute(MARK_ATTR);
   }
 
+  /** The page a selected element currently sits on (for normalization tests). */
+  pageOf(selector: string): number {
+    const el = this.flow.querySelector(selector);
+    return el ? this.engine.pageForElement(el) : -1;
+  }
+
+  /** A computed style property of a selected element (content window realm). */
+  computedStyle(selector: string, prop: string): string {
+    const el = this.flow.querySelector(selector);
+    if (!el) return "";
+    return this.iframe.contentWindow!.getComputedStyle(el).getPropertyValue(prop);
+  }
+
+  /** Inject a full-height scroll-trap shell after load, then repaginate — proves
+   *  normalization re-runs on reflow rather than only at setup (QE-1421/1422). */
+  injectScrollTrap(): void {
+    const doc = this.iframe.contentDocument!;
+    const trap = doc.createElement("div");
+    trap.id = "injected-shell";
+    trap.style.height = "100vh";
+    trap.style.overflow = "auto";
+    let html = "";
+    for (let i = 0; i < 12; i++) {
+      html += `<p>Injected shell paragraph ${i}: enough text to overflow the viewport height several times so the container genuinely traps its content and would otherwise collapse to a single page.</p>`;
+    }
+    trap.innerHTML = html;
+    this.flow.appendChild(trap);
+    this.engine.reflowNow();
+  }
+
   /** Exercise the versioned message-schema guard (QE-1423). */
   checkProtocol(): { valid: boolean; invalidType: boolean; wrongVersion: boolean } {
     const good = { v: PROTOCOL_VERSION, type: "command", command: { name: "next" } };

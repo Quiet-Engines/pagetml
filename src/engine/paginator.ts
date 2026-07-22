@@ -12,7 +12,7 @@
 import type { Anchor, PageState, PaginatorOptions } from "./types.js";
 import { measureInFlow, pageAtX, pageCountForExtent } from "./measure.js";
 import { captureAnchor, pageForAnchor } from "./anchor.js";
-import { injectBaseStyle, normalizePositioning, unwrapScrollContainers } from "./normalize.js";
+import { injectBaseStyle, normalizeContent } from "./normalize.js";
 
 const FLOW_CLASS = "pager-flow";
 const TRANSITION = "transform 250ms cubic-bezier(0.22, 0.61, 0.36, 1)";
@@ -85,9 +85,6 @@ export class Paginator {
   private setup(): void {
     const doc = this.doc;
 
-    // Normalize awkward content before it enters the flow.
-    unwrapScrollContainers(doc);
-
     // Move all body content into the flow element.
     const flow = doc.createElement("div");
     flow.className = FLOW_CLASS;
@@ -111,9 +108,6 @@ export class Paginator {
     flow.style.setProperty("column-fill", "auto");
     flow.style.setProperty("will-change", "transform");
 
-    this.layout();
-    normalizePositioning(this.flow, this.win);
-    // Positioning normalization can change heights; settle once afterwards.
     this.paginate();
   }
 
@@ -135,6 +129,11 @@ export class Paginator {
     flow.style.setProperty("width", `${this.pageWidth}px`);
     flow.style.setProperty("column-width", `${this.pageWidth}px`);
     flow.style.setProperty("column-gap", `${this.gap}px`);
+
+    // Normalize awkward content (scroll-trap shells, fixed/sticky) every pass so
+    // script-injected content is handled too. Idempotent; runs before the
+    // scrollWidth read since it can change the content extent.
+    normalizeContent(flow, this.win);
 
     // Total content extent (transform-independent; scrollWidth is layout-based).
     this._pageCount = pageCountForExtent(flow.scrollWidth, this.stride, this.gap);

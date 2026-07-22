@@ -9,6 +9,8 @@ export const FIXTURES = [
   "tall-media",
   "fixed-sticky",
   "scroll-shell",
+  "scroll-shell-nested",
+  "sticky-midflow",
   "tables-code",
   "gdocs-export",
 ] as const;
