@@ -10,7 +10,7 @@
 // pages by translating the flow horizontally by whole page widths.
 
 import type { Anchor, PageState, PaginatorOptions } from "./types.js";
-import { measureInFlow, pageAtX } from "./measure.js";
+import { measureInFlow, pageAtX, pageCountForExtent } from "./measure.js";
 import { captureAnchor, pageForAnchor } from "./anchor.js";
 import { injectBaseStyle, normalizePositioning, unwrapScrollContainers } from "./normalize.js";
 
@@ -111,21 +111,17 @@ export class Paginator {
     flow.style.setProperty("column-fill", "auto");
     flow.style.setProperty("will-change", "transform");
 
-    this.paginate();
-    this.normalizeAfterLayout();
-    // Positioning normalization can change heights; recompute once.
-    this.paginate();
-  }
-
-  /** Runs after content is laid out inside the flow (needs computed styles). */
-  private normalizeAfterLayout(): void {
+    this.layout();
     normalizePositioning(this.flow, this.win);
+    // Positioning normalization can change heights; settle once afterwards.
+    this.paginate();
   }
 
   // --- pagination -------------------------------------------------------------
 
-  /** (Re)compute page dimensions and page count, then settle on a page. */
-  paginate(): void {
+  /** Size the flow and (re)count pages. Pure layout: no transform write, anchor
+   *  capture, or emit — so it can run before normalization without side effects. */
+  private layout(): void {
     this.pageWidth = Math.max(1, Math.floor(this.win.innerWidth));
     this.pageHeight = Math.max(1, Math.floor(this.win.innerHeight));
 
@@ -141,17 +137,23 @@ export class Paginator {
     flow.style.setProperty("column-gap", `${this.gap}px`);
 
     // Total content extent (transform-independent; scrollWidth is layout-based).
-    const scrollWidth = flow.scrollWidth;
-    this._pageCount = Math.max(1, Math.round((scrollWidth + this.gap) / this.stride));
+    this._pageCount = pageCountForExtent(flow.scrollWidth, this.stride, this.gap);
+  }
+
+  /** (Re)compute layout, then settle on the page the reader is anchored to. */
+  paginate(): void {
+    this.layout();
 
     // Restore the reader's position from the live anchor when we have one.
-    let target = this._currentPage;
-    if (this.currentAnchor) {
-      target = pageForAnchor(this.currentAnchor, flow, this.stride);
-    }
+    const target = this.currentAnchor
+      ? pageForAnchor(this.currentAnchor, this.flow, this.stride)
+      : this._currentPage;
     this._currentPage = this.clampPage(target);
-    this.applyTransform(false);
+
+    // Capture the anchor (a layout read) before writing the transform, so the
+    // write doesn't force a second layout for the read that follows.
     this.captureCurrentAnchor();
+    this.applyTransform(false);
     this.emit();
   }
 
@@ -182,8 +184,10 @@ export class Paginator {
 
   goToPage(page: number, animate = true): void {
     this._currentPage = this.clampPage(page);
-    this.applyTransform(animate);
+    // Capture (read) before the transform write to avoid a read-after-write
+    // layout flush; measurement is transform-independent so order is safe.
     this.captureCurrentAnchor();
+    this.applyTransform(animate);
     this.emit();
   }
   next(): void {

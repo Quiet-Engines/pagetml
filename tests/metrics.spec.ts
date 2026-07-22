@@ -1,24 +1,10 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { FIXTURES, loadFixture } from "./helpers.js";
 
 // Guards against vacuous invariant passes: every fixture must actually
 // paginate into multiple pages at a normal window size (otherwise "no fragment
 // straddles a boundary" is trivially true). Also logs concrete page counts,
 // which serve as the recorded metrics behind the engine go/no-go (QE-1426).
-
-const FIXTURES = [
-  "prose",
-  "breaks",
-  "tall-media",
-  "fixed-sticky",
-  "scroll-shell",
-  "tables-code",
-  "gdocs-export",
-];
-
-async function loadFixture(page: Page, fixture: string, w: number, h: number) {
-  await page.goto(`/harness/index.html?fixture=${fixture}&w=${w}&h=${h}`);
-  await page.waitForFunction(() => window.__pagerReady === true);
-}
 
 for (const fixture of FIXTURES) {
   test(`${fixture} paginates into multiple pages`, async ({ page }, testInfo) => {

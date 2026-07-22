@@ -4,7 +4,16 @@
 // architecture: the engine paginates a document inside a frame); the engine runs
 // against that iframe's window.
 
-import { createPaginator, isPagerMessage, PROTOCOL_VERSION, type Paginator } from "../src/engine/index.js";
+import {
+  createPaginator,
+  elementAtPath,
+  isPagerMessage,
+  isReplacedElement,
+  measureRectInFlow,
+  pageAtX,
+  PROTOCOL_VERSION,
+  type Paginator,
+} from "../src/engine/index.js";
 import type { Anchor } from "../src/engine/index.js";
 
 const MARK_ATTR = "data-pager-mark";
@@ -113,12 +122,7 @@ class PagerHarness {
    *  repagination and assert the anchor still points at it. */
   markAnchor(a: Anchor): { tag: string; text: string } {
     this.clearMarks();
-    let cur: Element = this.flow;
-    for (const idx of a.path) {
-      const next = cur.children[idx];
-      if (!next) break;
-      cur = next;
-    }
+    const cur = elementAtPath(this.flow, a.path);
     cur.setAttribute(MARK_ATTR, "1");
     return { tag: cur.tagName, text: (cur.textContent ?? "").trim().slice(0, 24) };
   }
@@ -147,58 +151,39 @@ class PagerHarness {
    *  exceeds a page, and every leaf's fragments land on real pages. */
   invariants(): InvariantReport {
     const m = this.engine.debugMetrics();
-    const stride = m.stride;
-    const pageWidth = m.pageWidth;
-    const pageHeight = m.pageHeight;
-    const flowRect = this.flow.getBoundingClientRect();
+    const { stride, pageWidth, pageHeight, pageCount } = m;
+    // Read the flow origin once (see measure.ts) and cancel its transform via
+    // the same helper the engine uses, so the invariant checker and production
+    // share one boundary definition.
+    const flowOrigin = this.flow.getBoundingClientRect();
     const clipping: Offender[] = [];
     const unreachable: Offender[] = [];
     const eps = 1.5;
 
+    const offender = (el: Element, r: DOMRect, leftPage: number, rightPage: number): Offender => ({
+      tag: el.tagName,
+      text: (el.textContent ?? "").trim().slice(0, 40),
+      leftPage,
+      rightPage,
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+    });
+
     const leaves = this.leafContentElements();
     for (const el of leaves) {
-      const rects = el.getClientRects();
-      if (rects.length === 0) continue;
-      const desc = (): Offender => ({
-        tag: el.tagName,
-        text: (el.textContent ?? "").trim().slice(0, 40),
-        leftPage: -1,
-        rightPage: -1,
-        width: 0,
-        height: 0,
-      });
-      for (const r of rects) {
-        const left = r.left - flowRect.left;
-        const right = r.right - flowRect.left;
-        const leftPage = Math.floor((left + 0.5) / stride);
-        const rightPage = Math.floor((right - 0.5) / stride);
+      for (const r of el.getClientRects()) {
+        const rect = measureRectInFlow(r, flowOrigin);
+        const leftPage = pageAtX(rect.left, stride);
+        const rightPage = pageAtX(rect.right - 1, stride);
 
-        // Horizontal straddle => a line/fragment was cut across the gap.
-        if (rightPage !== leftPage || r.width > pageWidth + eps) {
-          const o = desc();
-          o.leftPage = leftPage;
-          o.rightPage = rightPage;
-          o.width = Math.round(r.width);
-          o.height = Math.round(r.height);
-          clipping.push(o);
+        // Clipping: a fragment straddles the gap, is wider than a page, or is
+        // taller than a page (would be cut by the fixed column height).
+        if (rightPage !== leftPage || r.width > pageWidth + eps || r.height > pageHeight + eps) {
+          clipping.push(offender(el, r, leftPage, rightPage));
         }
-        // Vertical over-size => taller than a page, would be clipped by column.
-        if (r.height > pageHeight + eps) {
-          const o = desc();
-          o.leftPage = leftPage;
-          o.rightPage = rightPage;
-          o.width = Math.round(r.width);
-          o.height = Math.round(r.height);
-          clipping.push(o);
-        }
-        // Reachability => fragment sits on a counted page.
-        if (leftPage < 0 || leftPage >= m.pageCount || rightPage < 0 || rightPage >= m.pageCount) {
-          const o = desc();
-          o.leftPage = leftPage;
-          o.rightPage = rightPage;
-          o.width = Math.round(r.width);
-          o.height = Math.round(r.height);
-          unreachable.push(o);
+        // Reachability: the fragment sits on a counted page.
+        if (leftPage < 0 || leftPage >= pageCount || rightPage < 0 || rightPage >= pageCount) {
+          unreachable.push(offender(el, r, leftPage, rightPage));
         }
       }
     }
@@ -223,8 +208,7 @@ class PagerHarness {
       const cs = win.getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden") continue;
       const hasText = (el.textContent ?? "").trim().length > 0;
-      const replaced = /^(IMG|SVG|VIDEO|CANVAS|IFRAME|HR)$/.test(el.tagName);
-      if (hasText || replaced) out.push(el);
+      if (hasText || isReplacedElement(el)) out.push(el);
     }
     return out;
   }

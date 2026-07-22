@@ -23,22 +23,33 @@ export interface FlowRect {
   height: number;
 }
 
-/**
- * Measure `el` in the flow's coordinate space. The result is independent of the
- * flow's current transform (static or mid-transition), because the flow's rect
- * carries the same transform and is subtracted out.
- */
-export function measureInFlow(el: Element, flow: Element): FlowRect {
-  const e = el.getBoundingClientRect();
-  const f = flow.getBoundingClientRect();
+/** The flow's viewport-space origin; enough to cancel its transform. */
+export interface FlowOrigin {
+  left: number;
+  top: number;
+}
+
+/** Subtract the flow origin from a viewport-space rect (a fragment or element).
+ *  This is the single transform-cancelling correction; everything else builds
+ *  on it. */
+export function measureRectInFlow(rect: DOMRect, flow: FlowOrigin): FlowRect {
   return {
-    left: e.left - f.left,
-    right: e.right - f.left,
-    top: e.top - f.top,
-    bottom: e.bottom - f.top,
-    width: e.width,
-    height: e.height,
+    left: rect.left - flow.left,
+    right: rect.right - flow.left,
+    top: rect.top - flow.top,
+    bottom: rect.bottom - flow.top,
+    width: rect.width,
+    height: rect.height,
   };
+}
+
+/**
+ * Measure `el` in the flow's coordinate space. Pass a pre-read `flowOrigin`
+ * when measuring many elements against the same flow (e.g. a TreeWalk) to avoid
+ * re-reading — and re-forcing layout for — the flow rect per element.
+ */
+export function measureInFlow(el: Element, flow: Element, flowOrigin?: FlowOrigin): FlowRect {
+  return measureRectInFlow(el.getBoundingClientRect(), flowOrigin ?? flow.getBoundingClientRect());
 }
 
 /** The page index that a given flow-space x-coordinate falls on. */
@@ -46,4 +57,11 @@ export function pageAtX(x: number, pageStride: number): number {
   if (pageStride <= 0) return 0;
   // A tiny epsilon absorbs sub-pixel rounding at exact boundaries.
   return Math.floor((x + 0.5) / pageStride);
+}
+
+/** Total page count for a content extent, given the page stride (width + gap).
+ *  The inverse of `pageAtX` — both halves of the stride model live here. */
+export function pageCountForExtent(scrollWidth: number, pageStride: number, gap: number): number {
+  if (pageStride <= 0) return 1;
+  return Math.max(1, Math.round((scrollWidth + gap) / pageStride));
 }

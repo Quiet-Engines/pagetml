@@ -1,31 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { FIXTURES, VIEWPORTS, loadFixture } from "./helpers.js";
 
-// The fixture corpus (QE-1424). Each is paginated and asserted against the
-// invariants (QE-1425) on both Chromium (WebView2 proxy) and WebKit (WKWebView
-// proxy) — the cross-engine run is the evidence for the WKWebView go/no-go
-// (QE-1426).
-const FIXTURES = [
-  "prose",
-  "breaks",
-  "tall-media",
-  "fixed-sticky",
-  "scroll-shell",
-  "tables-code",
-  "gdocs-export",
-];
-
-// A few representative window sizes. Auto-fit means page counts differ across
-// these; the invariants must hold at every size (spec §7).
-const VIEWPORTS = [
-  { w: 800, h: 600 },
-  { w: 1024, h: 768 },
-  { w: 480, h: 720 },
-];
-
-async function loadFixture(page: Page, fixture: string, w: number, h: number) {
-  await page.goto(`/harness/index.html?fixture=${fixture}&w=${w}&h=${h}`);
-  await page.waitForFunction(() => window.__pagerReady === true);
-}
+// The fixture corpus (QE-1424) is paginated and asserted against the invariants
+// (QE-1425) on both Chromium (WebView2 proxy) and WebKit (WKWebView proxy) —
+// the cross-engine run is the evidence for the WKWebView go/no-go (QE-1426).
 
 test.describe("pagination invariants", () => {
   for (const fixture of FIXTURES) {

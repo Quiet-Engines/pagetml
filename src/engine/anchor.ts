@@ -7,6 +7,7 @@
 
 import type { Anchor } from "./types.js";
 import { measureInFlow, pageAtX } from "./measure.js";
+import { isReplacedElement } from "./dom.js";
 
 /** Build a child-index path from `root` down to `el`. */
 export function pathToElement(el: Element, root: Element): number[] {
@@ -55,10 +56,13 @@ export function captureAnchor(
 ): Anchor | null {
   const walker = flow.ownerDocument.createTreeWalker(flow, NodeFilter.SHOW_ELEMENT);
   let firstOnPage: Element | null = null;
+  // Read the flow origin once; measuring N children against it avoids N extra
+  // flow-rect reads (each of which can force a synchronous layout).
+  const flowOrigin = flow.getBoundingClientRect();
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const el = node as Element;
-    const rect = measureInFlow(el, flow);
+    const rect = measureInFlow(el, flow, flowOrigin);
     if (rect.width === 0 && rect.height === 0) continue; // not rendered
     const elPage = pageAtX(rect.left, pageStride);
     if (elPage !== page) continue;
@@ -67,8 +71,7 @@ export function captureAnchor(
 
     const isLeaf = el.childElementCount === 0;
     const hasText = (el.textContent ?? "").trim().length > 0;
-    const replaced = /^(IMG|SVG|VIDEO|CANVAS|IFRAME)$/.test(el.tagName);
-    if ((isLeaf && (hasText || replaced))) {
+    if (isLeaf && (hasText || isReplacedElement(el))) {
       return { path: pathToElement(el, flow), offset: 0, textHint: firstTextHint(el) };
     }
   }

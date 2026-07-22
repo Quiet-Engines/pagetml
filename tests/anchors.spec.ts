@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { loadFixture } from "./helpers.js";
 
 // Anchor stability across a resize round-trip (QE-1417, spec §5 finding 2).
 // The assertion is on CONTAINMENT — after resizing away and back, the anchor
@@ -6,14 +7,11 @@ import { test, expect, type Page } from "@playwright/test";
 // page number, because font size scales with window width so the "same" content
 // legitimately lands on a different page number.
 
-async function loadFixture(page: Page, fixture: string, w = 800, h = 600) {
-  await page.goto(`/harness/index.html?fixture=${fixture}&w=${w}&h=${h}`);
-  await page.waitForFunction(() => window.__pagerReady === true);
-}
+// A representative subset spanning prose, nested-span exports, tables, and
+// normalized positioning.
+const ANCHOR_FIXTURES = ["prose", "gdocs-export", "tables-code", "fixed-sticky"];
 
-const FIXTURES = ["prose", "gdocs-export", "tables-code", "fixed-sticky"];
-
-for (const fixture of FIXTURES) {
+for (const fixture of ANCHOR_FIXTURES) {
   test(`${fixture}: anchor survives a resize round-trip`, async ({ page }) => {
     await loadFixture(page, fixture, 800, 600);
 
