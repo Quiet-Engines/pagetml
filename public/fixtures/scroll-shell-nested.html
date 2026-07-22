@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Nested scroll-shell fixture</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      /* The scroll trap is a GRANDCHILD of body, not a direct child — the old
+         one-level-deep detection missed this; the measurement-based detector
+         catches it at any depth (QE-1422). */
+      .frame { padding: 0; }
+      #app {
+        height: 100vh;
+        overflow: auto;
+        font: 17px/1.55 system-ui, sans-serif;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      p { margin: 0 0 0.9em; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <main id="app">
+        <h1>Nested single-page-app shell</h1>
+        <p>The scrolling container that holds all content is nested one level below <code>body</code> (inside <code>.frame</code>). The old detector only inspected <code>body</code> and its direct children, so it never saw this element and the document collapsed to a single page. The measurement-based detector inspects the whole subtree and identifies any viewport-sized box that clips its overflow.</p>
+        <p>This shell deliberately holds well more than one viewport of content, so the container genuinely traps its overflow behind an internal scrollbar. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+        <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+        <p>Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.</p>
+        <p>Sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet consectetur adipisci velit.</p>
+        <p>Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.</p>
+        <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint.</p>
+        <p>Content block nine, well past the first viewport height, so reachability would catch lost content if unwrapping failed and the container kept clipping.</p>
+        <p>Content block ten, more text to guarantee several pages after unwrapping at common window sizes.</p>
+        <p>Content block eleven, continuing so the resize round-trip has real content to keep an anchor against.</p>
+        <p>Content block twelve, the last one, leaving the final page partially filled to exercise the end boundary.</p>
+      </main>
+    </div>
+  </body>
+</html>

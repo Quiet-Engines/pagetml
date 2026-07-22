@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mid-flow sticky fixture</title>
+    <style>
+      body { font: 17px/1.55 system-ui, sans-serif; margin: 0; padding: 16px; }
+      p { margin: 0 0 0.9em; }
+      #midsticky {
+        position: sticky;
+        top: 0;
+        background: #f6d69a;
+        padding: 10px 14px;
+        font-weight: 700;
+      }
+      .filler { color: #333; }
+    </style>
+  </head>
+  <body>
+    <h1>Sticky element authored mid-document</h1>
+    <p class="filler">This document places a <code>position: sticky; top: 0</code> block roughly in the middle of a multi-page document. Naively converting sticky to <code>absolute</code> while keeping <code>top: 0</code> would pin it to the containing block's origin — page 0 — no matter where it was authored.</p>
+    <p class="filler">Neutralizing the inset keeps the converted element at its static position, so it stays on the page its surrounding content lands on. The test asserts the sticky block is NOT on page 0.</p>
+    <p class="filler">Filler one to push the sticky block off the first page. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore.</p>
+    <p class="filler">Filler two. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+    <p class="filler">Filler three. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+    <p class="filler">Filler four. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+    <p class="filler">Filler five. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+    <p class="filler">Filler six. Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+    <p class="filler">Filler seven. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores.</p>
+    <p class="filler">Filler eight. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet consectetur adipisci velit, sed quia non numquam.</p>
+    <p class="filler">Filler nine. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi.</p>
+    <p class="filler">Filler ten. Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur.</p>
+    <p class="filler">Filler eleven. At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti.</p>
+    <div id="midsticky">Sticky heading authored in the middle of the document</div>
+    <p class="filler">After the sticky block: totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt.</p>
+    <p class="filler">Trailing one. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.</p>
+    <p class="filler">Trailing two. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet consectetur.</p>
+    <p class="filler">Trailing three, leaving the final page partially filled to exercise the end boundary.</p>
+  </body>
+</html>
