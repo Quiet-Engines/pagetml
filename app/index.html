@@ -150,6 +150,23 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
       }
+      .toggle {
+        background: transparent;
+        color: var(--ink-dim);
+        border: 1px solid #313a4b;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .toggle:hover { border-color: var(--amber); color: var(--ink); }
+      .toggle[aria-pressed="true"] {
+        color: var(--house);
+        background: var(--amber);
+        border-color: var(--amber);
+        font-weight: 600;
+      }
       .hint { color: var(--ink-dim); margin-left: auto; }
     </style>
   </head>
