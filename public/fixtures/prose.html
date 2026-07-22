@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Prose fixture</title>
+    <style>
+      body { font: 18px/1.6 Georgia, serif; color: #1a1a1a; }
+      h1, h2 { font-family: system-ui, sans-serif; line-height: 1.2; }
+      p { margin: 0 0 1em; }
+      blockquote { margin: 1em 2em; font-style: italic; color: #555; }
+    </style>
+  </head>
+  <body>
+    <h1>On the Pagination of Arbitrary Documents</h1>
+    <p>Browsers are the most dynamic rendering engines in existence, yet no mainstream tool presents an arbitrary HTML document as discrete, navigable pages the way a PDF reader or a slide deck does. The gap is pagination and presenting, not rendering.</p>
+    <p>Correctly rendering HTML and CSS means using a real engine. A standalone reader is realistically a desktop app that embeds a web engine and adds the pagination and presenter experience on top. The product value is that experience, not a new engine.</p>
+    <h2>The multi-column technique</h2>
+    <p>The body is wrapped in a container whose column width equals the viewport width and whose height is fixed, so the engine itself flows content into fixed-size columns; each column is one page. Page turns translate the container horizontally by whole page widths.</p>
+    <p>The browser's own line-breaking, float, and fragmentation logic does the heavy lifting, which is the only realistic way to correctly paginate arbitrary HTML. Break properties flow through natively via column fragmentation.</p>
+    <blockquote>Measuring element rectangles while a transform transition is mid-flight returns interpolated values; subtract the flow's current transform from every measurement so the animation cancels out exactly.</blockquote>
+    <p>Position anchors are a path to the first visible element plus a character offset, surviving repagination and restarts. After shrinking the window the anchor heading legitimately moves to an earlier page because more content fits per page; tests must assert on containment, not on expected page numbers.</p>
+    <h2>Hostile content</h2>
+    <p>Elements taller than one page — large images, tall tables, preformatted blocks — need explicit handling: scale images to fit, fragment tables and code where possible, mark the page internally scrollable as a last resort.</p>
+    <p>Fixed and sticky elements are normalized to absolute within the page because they are inconsistent inside columns across engines. Documents with a single top-level full-height scroll container are unwrapped into flowed content when detected.</p>
+    <p>A corpus covering the hard cases plus real-world exports — word-processor HTML, Pandoc output, notebook conversions, single-file builds — guards the behavioral contract. Assertions are on invariants, never on exact page counts.</p>
+    <p>The known tension is that with auto-fit, page seven on the laptop may not be page seven on the projector. Locking at fullscreen entry means the app repaginates once at the display's resolution, then freezes boundaries for the duration of the presentation.</p>
+    <p>Under auto-fit, differing page counts across engines and window sizes are acceptable and expected. Engines must agree on behavior, not pixel-identical boundaries; the fixture suite guards that contract on both Chromium and WebKit.</p>
+    <p>The chrome should recede completely around the content: a dark theater, a lit stage, and a single spotlight-amber accent carrying the interactive elements. Reading mode shows only a slim status bar; presentation mode shows no chrome at all.</p>
+    <p>This paragraph exists so the document comfortably exceeds a single page at common window sizes, producing several pages to navigate, resize, and anchor against during the test run. It repeats the themes above without adding new ones.</p>
+    <p>And a final paragraph, for good measure, so the last page is only partially filled and the end-of-document boundary is exercised by the reachability invariant as well as the clipping one.</p>
+  </body>
+</html>

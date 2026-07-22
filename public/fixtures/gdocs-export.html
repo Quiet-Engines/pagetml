@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Word-processor export fixture</title>
+    <!-- Mimics the shape of a Google Docs / word-processor HTML export: deeply
+         nested spans, per-run inline styles, and class-per-paragraph noise. -->
+    <style>
+      .doc { max-width: none; }
+      .c0 { font-size: 15pt; font-family: Arial, sans-serif; color: #202124; }
+      .c1 { font-weight: 700; }
+      .c2 { font-style: italic; }
+      .c3 { color: #1155cc; text-decoration: underline; }
+      .title { font-size: 26pt; font-weight: 700; padding-top: 12pt; }
+      p { margin: 0; padding: 0 0 10pt; line-height: 1.35; }
+      li { margin: 0 0 6pt 24pt; }
+    </style>
+  </head>
+  <body class="doc">
+    <p class="title"><span class="c0 c1">Quarterly Field Notes</span></p>
+    <p><span class="c0">This document imitates a </span><span class="c0 c2">word-processor export</span><span class="c0">, with each run of text wrapped in its own styled span and every paragraph tagged with generated class names. Such exports are a primary real-world input for the pagination engine.</span></p>
+    <p><span class="c0">The engine must flow this nested markup into columns without being confused by the wrapper spans, and without any run of text being clipped at a page boundary. See the </span><span class="c0 c3">reference link</span><span class="c0"> which opens externally in the real app.</span></p>
+    <p><span class="c0 c1">Findings</span></p>
+    <ul>
+      <li><span class="c0">Nested inline spans do not, by themselves, prevent fragmentation; the browser breaks between lines regardless of wrapper depth.</span></li>
+      <li><span class="c0">Per-run font sizes in points scale with the document, so page counts shift with window size exactly as auto-fit intends.</span></li>
+      <li><span class="c0">Generated class names are inert to the engine; only computed layout matters.</span></li>
+    </ul>
+    <p><span class="c0">The remaining paragraphs pad the document so it spans several pages at typical window sizes, giving the resize round-trip and anchor-containment checks genuine content to operate against.</span></p>
+    <p><span class="c0">Padding paragraph one, echoing the structure above with multiple styled runs </span><span class="c0 c2">including an italic aside</span><span class="c0"> and a return to normal weight.</span></p>
+    <p><span class="c0">Padding paragraph two, continuing the export-style markup so the document is comfortably multi-page and the end boundary is exercised by the reachability invariant.</span></p>
+    <p><span class="c0">Padding paragraph three closes the document with a partially filled final page.</span></p>
+  </body>
+</html>

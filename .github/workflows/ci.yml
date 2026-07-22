@@ -1,0 +1,33 @@
+name: engine-ci
+
+# Milestone 1 regression gate: the pagination fixture invariants must stay green
+# on BOTH engines — Chromium (the WebView2 reference engine) and WebKit (the
+# WKWebView proxy). This cross-engine run is the standing evidence for the
+# WKWebView go/no-go (QE-1426); a red WebKit leg is the no-go signal.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - name: Install Playwright browsers (Chromium + WebKit)
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run invariant suite on both engines
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
