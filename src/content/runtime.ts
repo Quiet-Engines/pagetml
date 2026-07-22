@@ -11,6 +11,7 @@
 
 import { createPaginator, createTransport } from "../engine/index.js";
 import type { PagerMessage } from "../engine/index.js";
+import { installLinkHandling } from "./links.js";
 
 async function graftFixture(name: string): Promise<void> {
   const res = await fetch(`/fixtures/${name}.html`);
@@ -34,6 +35,9 @@ async function main(): Promise<void> {
     onChange: (state) => transport.send({ type: "state", state }),
   });
   engine.observe(true);
+
+  // Internal links jump within the document; external links go to the chrome.
+  installLinkHandling(document, engine, (url) => transport.send({ type: "openExternal", url }));
 
   transport.onMessage((msg: PagerMessage) => {
     if (msg.type !== "command") return;

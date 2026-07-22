@@ -172,6 +172,11 @@ class Chrome {
     if (msg.type === "state") {
       this.state = msg.state;
       this.updateStatus();
+    } else if (msg.type === "openExternal") {
+      // External links never open inside Pager. In the real app the Tauri shell
+      // hands this to the OS default browser; in the browser build we open a new
+      // tab. `noopener` severs the link back to this window.
+      window.open(msg.url, "_blank", "noopener,noreferrer");
     }
     // `anchor` messages carry the reader's position; persisting and restoring
     // them (recent-file position restore) is part of the native M2 work.

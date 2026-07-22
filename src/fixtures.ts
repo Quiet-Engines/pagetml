@@ -12,4 +12,5 @@ export const FIXTURES = [
   "sticky-midflow",
   "tables-code",
   "gdocs-export",
+  "links",
 ] as const;
