@@ -4,3 +4,9 @@ playwright-report/
 test-results/
 .DS_Store
 *.log
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/content-runtime.js
+src-tauri/icons/

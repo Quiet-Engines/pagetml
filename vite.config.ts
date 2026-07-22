@@ -51,4 +51,18 @@ export default defineConfig({
     port: 5179,
     strictPort: true,
   },
+  // `npm run build:app` produces the Tauri frontendDist (../dist). Both the
+  // chrome (app/index.html) and the dev content host (app/content.html) are
+  // emitted; the window loads `app/index.html`. NOTE: verify the dist layout on
+  // a real build (see src-tauri/NOTES.md).
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        app: "app/index.html",
+        content: "app/content.html",
+      },
+    },
+  },
 });
