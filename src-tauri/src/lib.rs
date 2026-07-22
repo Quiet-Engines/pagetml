@@ -20,6 +20,14 @@ use tauri::http::{header, Request, Response, StatusCode};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
+/// The custom protocol scheme and the reserved path under it that serves the
+/// bundled content runtime. Single source of truth: the scheme registration, the
+/// CSP, the injected `<script>` URL, and the reserved-path guard must all agree,
+/// or the runtime silently 404s (dead URL) or the CSP blocks it — none of which
+/// is a compile error. Keep every `pagetml://` reference derived from these.
+const SCHEME: &str = "pagetml";
+const RUNTIME_PATH: &str = "__pagetml__/runtime.js";
+
 /// Per-app state: the directory of the currently open document (the pagetml://
 /// sandbox root) and its per-file "allow remote resources" flag (QE-1431).
 #[derive(Default)]
@@ -35,13 +43,13 @@ struct AppState {
 fn content_csp(allow_remote: bool) -> String {
     let remote = if allow_remote { " https:" } else { "" };
     format!(
-        "default-src 'self' pagetml:; \
-         script-src 'self' pagetml: 'unsafe-inline'{remote}; \
-         style-src 'self' pagetml: 'unsafe-inline'{remote}; \
-         img-src 'self' pagetml: data: blob:{remote}; \
-         font-src 'self' pagetml: data:{remote}; \
-         media-src 'self' pagetml: data: blob:{remote}; \
-         connect-src 'self' pagetml:{remote}"
+        "default-src 'self' {SCHEME}:; \
+         script-src 'self' {SCHEME}: 'unsafe-inline'{remote}; \
+         style-src 'self' {SCHEME}: 'unsafe-inline'{remote}; \
+         img-src 'self' {SCHEME}: data: blob:{remote}; \
+         font-src 'self' {SCHEME}: data:{remote}; \
+         media-src 'self' {SCHEME}: data: blob:{remote}; \
+         connect-src 'self' {SCHEME}:{remote}"
     )
 }
 
@@ -83,11 +91,12 @@ fn error(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 /// dev `graftFixture`/`loadDocument` path). The runtime itself is served at the
 /// reserved path below.
 fn inject_runtime(html: Vec<u8>) -> Vec<u8> {
-    const TAG: &str = "\n<script type=\"module\" src=\"pagetml://localhost/__pagetml__/runtime.js\"></script>\n";
+    let tag =
+        format!("\n<script type=\"module\" src=\"{SCHEME}://localhost/{RUNTIME_PATH}\"></script>\n");
     let text = String::from_utf8_lossy(&html);
     let injected = match text.to_ascii_lowercase().rfind("</body>") {
-        Some(idx) => format!("{}{}{}", &text[..idx], TAG, &text[idx..]),
-        None => format!("{text}{TAG}"),
+        Some(idx) => format!("{}{}{}", &text[..idx], tag, &text[idx..]),
+        None => format!("{text}{tag}"),
     };
     injected.into_bytes()
 }
@@ -105,7 +114,7 @@ fn handle_pagetml<R: tauri::Runtime>(
     // Reserved: serve the bundled content runtime (see NOTES.md — the build must
     // place `content-runtime.js` in the app's resource dir).
     let raw_path = request.uri().path().trim_start_matches('/');
-    if raw_path == "__pagetml__/runtime.js" {
+    if raw_path == RUNTIME_PATH {
         return match app
             .path()
             .resolve("content-runtime.js", tauri::path::BaseDirectory::Resource)
@@ -163,7 +172,7 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
     *state.base_dir.lock().unwrap() = Some(dir);
     *state.document.lock().unwrap() = Some(path.clone());
 
-    let url = format!("pagetml://localhost/{}", urlencoding::encode(&file));
+    let url = format!("{SCHEME}://localhost/{}", urlencoding::encode(&file));
     // The chrome listens for this and loads `url` into its content frame.
     let _ = app.emit("open-document", url);
 }
@@ -192,7 +201,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .register_uri_scheme_protocol("pagetml", handle_pagetml)
+        .register_uri_scheme_protocol(SCHEME, handle_pagetml)
         .invoke_handler(tauri::generate_handler![set_remote, open_dialog])
         .setup(|app| {
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
