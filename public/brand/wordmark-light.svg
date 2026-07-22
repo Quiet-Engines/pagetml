@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -8 398 152" fill="none"
+     stroke="#171b24" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-label="Pager">
+  <!-- Grid: cap y=8, x-height y=36, baseline y=100, descender y=130. Monoline, stroke 13. -->
+  <!-- P — bowl is a page with a folded (dog-ear) top-right corner -->
+  <path d="M10 100 V8"/>
+  <path d="M10 8 H38 L54 24 V44 Q54 58 41 58 H10"/>
+  <!-- a -->
+  <circle cx="111" cy="68" r="32"/>
+  <path d="M143 36 V100"/>
+  <!-- g -->
+  <circle cx="201" cy="68" r="32"/>
+  <path d="M233 36 V108 A22 22 0 0 1 211 130"/>
+  <!-- e -->
+  <path d="M259 68 H323"/>
+  <path d="M323 68 A32 32 0 1 0 317.2 86.4"/>
+  <!-- r -->
+  <path d="M347 36 V100"/>
+  <path d="M347 64 A28 28 0 0 1 375 36"/>
+  <!-- the spotlight-amber period -->
+  <circle cx="375" cy="98" r="8" fill="#f5a623" stroke="none"/>
+</svg>

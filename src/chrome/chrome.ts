@@ -35,6 +35,26 @@ function addRecent(name: string): void {
 
 type Command = Extract<PagerMessage, { type: "command" }>["command"];
 
+// The typeface logo (public/brand/): hand-drawn monoline letterforms — the P's
+// bowl is a dog-eared page, the period is the amber accent. Inlined so strokes
+// inherit chrome ink via currentColor; only the period is hard-amber (CSS
+// `.dot { fill: var(--amber) }`).
+const WORDMARK_SVG = `
+  <svg viewBox="-6 -8 398 152" fill="none" stroke="currentColor" stroke-width="13"
+       stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Pager">
+    <path d="M10 100 V8"/>
+    <path d="M10 8 H38 L54 24 V44 Q54 58 41 58 H10"/>
+    <circle cx="111" cy="68" r="32"/>
+    <path d="M143 36 V100"/>
+    <circle cx="201" cy="68" r="32"/>
+    <path d="M233 36 V108 A22 22 0 0 1 211 130"/>
+    <path d="M259 68 H323"/>
+    <path d="M323 68 A32 32 0 1 0 317.2 86.4"/>
+    <path d="M347 36 V100"/>
+    <path d="M347 64 A28 28 0 0 1 375 36"/>
+    <circle class="dot" cx="375" cy="98" r="8" stroke="none"/>
+  </svg>`;
+
 class Chrome {
   private readonly root: HTMLElement;
   private state: PageState = { pageCount: 1, currentPage: 0, locked: false };
@@ -73,7 +93,7 @@ class Chrome {
     this.root.innerHTML = `
       <div class="start" data-testid="start">
         <div>
-          <div class="wordmark">Pager<span class="dot">.</span></div>
+          <div class="wordmark">${WORDMARK_SVG}</div>
           <div class="tagline">A paginated reader for local HTML.</div>
         </div>
         <div class="dropzone">Drop an <strong>.html</strong> file here, or pick one below.</div>
@@ -105,7 +125,7 @@ class Chrome {
           <button class="chevron right" data-testid="next" aria-label="Next page">›</button>
         </div>
         <div class="statusbar">
-          <button class="back" data-testid="back">Pager<span class="dot">.</span></button>
+          <button class="back" data-testid="back" aria-label="Back to start">${WORDMARK_SVG}</button>
           <span class="counter" data-testid="counter">– / –</span>
           <span class="chip">Reading</span>
           <span class="hint">← → Space to turn · Home / End · resizing repaginates</span>

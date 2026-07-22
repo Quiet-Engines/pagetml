@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Pager">
+  <!-- App mark: the dog-ear P plus the amber period, on a raised-chrome tile. -->
+  <rect width="128" height="128" rx="28" fill="#1e2532"/>
+  <g fill="none" stroke="#e7e9ee" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(38 20)">
+    <path d="M0 88 V0"/>
+    <path d="M0 0 H26 L42 16 V34 Q42 48 29 48 H0"/>
+  </g>
+  <circle cx="90" cy="100" r="8" fill="#f5a623"/>
+</svg>

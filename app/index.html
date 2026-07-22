@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pager</title>
+    <link rel="icon" type="image/svg+xml" href="/brand/mark.svg" />
     <style>
       /* Identity: dark theater, lit stage (spec §5). Chrome recedes; the paper
          page is the stage; a single spotlight-amber accent carries interaction. */
@@ -36,13 +37,12 @@
         gap: 28px;
         padding: 32px;
       }
-      .wordmark {
-        font-size: 44px;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-      }
-      .wordmark .dot { color: var(--amber); }
-      .tagline { color: var(--ink-dim); margin-top: -18px; }
+      /* Typeface logo (public/brand/): inline SVG strokes inherit chrome ink
+         via currentColor; the period is the lone amber element. */
+      .wordmark svg { display: block; height: 58px; margin: 0 auto; }
+      .wordmark .dot,
+      .back .dot { fill: var(--amber); }
+      .tagline { color: var(--ink-dim); margin-top: 10px; }
       .dropzone {
         width: min(560px, 90%);
         border: 1.5px dashed #38404f;
@@ -130,12 +130,14 @@
       .statusbar .back {
         background: transparent;
         border: 0;
+        padding: 0;
         color: var(--ink);
-        font: 700 15px/1 system-ui, sans-serif;
         cursor: pointer;
-        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
       }
-      .statusbar .back .dot { color: var(--amber); }
+      .statusbar .back svg { display: block; height: 19px; }
+      .statusbar .back:hover { color: #fff; }
       .counter {
         color: var(--amber);
         font-variant-numeric: tabular-nums;
