@@ -34,6 +34,25 @@ function addRecent(name: string): void {
   }
 }
 
+// The "allow remote resources" toggle is off by default and remembered per file
+// (spec §4.4). In the real app this per-file preference lives in the Tauri
+// layer alongside recents; in dev it is localStorage.
+const REMOTE_KEY = (name: string) => `pager.remote.${name}`;
+function isRemoteAllowed(name: string): boolean {
+  try {
+    return localStorage.getItem(REMOTE_KEY(name)) === "1";
+  } catch {
+    return false;
+  }
+}
+function setRemoteAllowed(name: string, on: boolean): void {
+  try {
+    localStorage.setItem(REMOTE_KEY(name), on ? "1" : "0");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
 type Command = Extract<PagerMessage, { type: "command" }>["command"];
 
 class Chrome {
@@ -43,6 +62,7 @@ class Chrome {
   private unsub?: () => void;
   private keyHandler?: (e: KeyboardEvent) => void;
   private frame?: HTMLIFrameElement;
+  private currentFixture?: string;
   private wheelAccum = 0;
   private wheelLock = false;
   // Status-bar elements, cached when reading mode is built (updated on every
@@ -103,6 +123,7 @@ class Chrome {
   open(fixture: string): void {
     this.teardownReading(); // leak-safe regardless of caller
     addRecent(fixture);
+    this.currentFixture = fixture;
     this.state = { pageCount: 1, currentPage: 0, locked: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
@@ -118,6 +139,7 @@ class Chrome {
           <button class="back" data-testid="back">Pager<span class="dot">.</span></button>
           <span class="counter" data-testid="counter">– / –</span>
           <span class="chip">Reading</span>
+          <button class="toggle" data-testid="remote-toggle" aria-pressed="false">Remote off</button>
           <span class="hint">← → Space to turn · Home / End · resizing repaginates</span>
         </div>
       </div>`;
@@ -130,17 +152,30 @@ class Chrome {
     next.addEventListener("click", () => this.next());
     q("[data-testid=back]").addEventListener("click", () => this.showStart());
 
+    const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
+    this.renderRemoteToggle(toggle, isRemoteAllowed(fixture));
+    toggle.addEventListener("click", () => this.toggleRemote(toggle));
+
+    this.frame = this.buildFrame(fixture);
+    q("[data-testid=stage]").appendChild(this.frame);
+
+    this.attachInput();
+  }
+
+  /** Create the sandboxed content iframe for `fixture`, honoring its per-file
+   *  "allow remote resources" setting (which selects the CSP the dev server
+   *  sends — see vite.config.ts / QE-1431). */
+  private buildFrame(fixture: string): HTMLIFrameElement {
     const iframe = document.createElement("iframe");
     iframe.className = "paper";
     iframe.dataset.testid = "paper";
     iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
-    this.frame = iframe;
 
     iframe.addEventListener("load", () => {
       const win = iframe.contentWindow;
       // Ignore a late load after the reader navigated away (teardown cleared
-      // this.frame or a newer open() replaced it) — otherwise we'd wire a stale
-      // transport and leak its window listener.
+      // this.frame or a newer open()/reload replaced it) — otherwise we'd wire a
+      // stale transport and leak its window listener.
       if (!win || this.frame !== iframe) return;
       // Post to the frame; listen on our own window (and only accept messages
       // from this frame). This is the ONLY channel to the content — the chrome
@@ -151,10 +186,33 @@ class Chrome {
 
     // src set before insertion => exactly one load event across engines (an
     // empty-src iframe can fire a spurious about:blank load on some engines).
-    iframe.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}`;
-    q("[data-testid=stage]").appendChild(iframe);
+    const remote = isRemoteAllowed(fixture) ? "&remote=1" : "";
+    iframe.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}${remote}`;
+    return iframe;
+  }
 
-    this.attachInput();
+  private renderRemoteToggle(btn: HTMLButtonElement, on: boolean): void {
+    btn.setAttribute("aria-pressed", String(on));
+    btn.textContent = on ? "Remote on" : "Remote off";
+    btn.title = on
+      ? "Remote resources allowed for this document (click to block)"
+      : "Remote resources blocked for this document (click to allow)";
+  }
+
+  /** Flip the per-file remote-resources setting and reload the frame under the
+   *  new CSP. Reloads the same iframe element, so drop the old transport first. */
+  private toggleRemote(btn: HTMLButtonElement): void {
+    const fixture = this.currentFixture;
+    if (!fixture || !this.frame) return;
+    const on = !isRemoteAllowed(fixture);
+    setRemoteAllowed(fixture, on);
+    this.renderRemoteToggle(btn, on);
+
+    this.unsub?.();
+    this.unsub = undefined;
+    this.transport = undefined;
+    const remote = on ? "&remote=1" : "";
+    this.frame.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}${remote}`;
   }
 
   private teardownReading(): void {
@@ -163,6 +221,7 @@ class Chrome {
     this.transport = undefined;
     this.els = undefined;
     this.frame = undefined;
+    this.currentFixture = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
