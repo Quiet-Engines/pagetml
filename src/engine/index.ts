@@ -14,6 +14,7 @@ export type {
   EngineToChrome,
   ChromeToEngine,
   CommandMessage,
+  LoadDocumentMessage,
   StateMessage,
   AnchorMessage,
   OpenExternalMessage,

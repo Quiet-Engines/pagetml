@@ -53,6 +53,9 @@
         background: var(--house-2);
       }
       .dropzone strong { color: var(--ink); }
+      .dropzone { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+      .dropzone:hover { border-color: var(--amber); }
+      .dropzone.dragover { border-color: var(--amber); background: var(--amber-soft); color: var(--ink); }
       .recents { width: min(560px, 90%); }
       .recents h2 {
         font-size: 12px;
