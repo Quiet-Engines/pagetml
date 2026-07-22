@@ -40,6 +40,15 @@ export interface ActivityMessage {
   type: "activity";
 }
 
+/** Chrome → engine: deliver a document opened by the chrome (dropped or picked
+ *  file) into the content frame, when it wasn't loaded via a `?fixture=`/
+ *  `pager://` URL. The frame grafts this HTML and paginates it (QE-1428). */
+export interface LoadDocumentMessage {
+  v: typeof PROTOCOL_VERSION;
+  type: "loadDocument";
+  html: string;
+}
+
 /** Chrome → engine: navigation and mode commands. */
 export interface CommandMessage {
   v: typeof PROTOCOL_VERSION;
@@ -56,7 +65,7 @@ export interface CommandMessage {
 }
 
 export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage | ActivityMessage;
-export type ChromeToEngine = CommandMessage;
+export type ChromeToEngine = CommandMessage | LoadDocumentMessage;
 export type PagerMessage = EngineToChrome | ChromeToEngine;
 
 /** A message payload without the protocol version — the transport stamps `v`,
@@ -66,7 +75,8 @@ export type Outgoing =
   | Omit<AnchorMessage, "v">
   | Omit<OpenExternalMessage, "v">
   | Omit<ActivityMessage, "v">
-  | Omit<CommandMessage, "v">;
+  | Omit<CommandMessage, "v">
+  | Omit<LoadDocumentMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */
 export function isPagerMessage(data: unknown): data is PagerMessage {

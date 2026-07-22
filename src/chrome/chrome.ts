@@ -85,6 +85,10 @@ class Chrome {
   private keyHandler?: (e: KeyboardEvent) => void;
   private frame?: HTMLIFrameElement;
   private currentFixture?: string;
+  /** For a document opened from a dropped/picked file, its HTML (re-sent to the
+   *  frame on every load, e.g. after a remote-toggle reload). Undefined for
+   *  fixtures, which the frame loads itself via `?fixture=`. */
+  private currentHtml?: string;
   /** A saved position to restore once the freshly-opened document is ready. */
   private pendingRestore?: Anchor;
   private wheelAccum = 0;
@@ -125,7 +129,10 @@ class Chrome {
           <div class="wordmark">Pager<span class="dot">.</span></div>
           <div class="tagline">A paginated reader for local HTML.</div>
         </div>
-        <div class="dropzone">Drop an <strong>.html</strong> file here, or pick one below.</div>
+        <div class="dropzone" data-testid="dropzone">
+          Drop an <strong>.html</strong> file here, or <u>click to choose</u> — or pick one below.
+          <input type="file" accept=".html,.htm,text/html" hidden data-testid="file-input" />
+        </div>
         <div class="recents">
           <h2>Documents</h2>
           <div class="recent-list"></div>
@@ -141,6 +148,33 @@ class Chrome {
     for (const name of new Set([...recents, ...SAMPLE_DOCS])) {
       list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
     }
+
+    // Drag-and-drop and file-picker open paths (QE-1428). OS file association
+    // and the CLI argument are native (Tauri) — deferred.
+    const dropzone = this.root.querySelector<HTMLElement>("[data-testid=dropzone]")!;
+    const input = this.root.querySelector<HTMLInputElement>("[data-testid=file-input]")!;
+    dropzone.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (file) void this.openFile(file);
+    });
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) void this.openFile(file);
+    });
+  }
+
+  /** Open a dropped or picked local file (QE-1428). */
+  private async openFile(file: File): Promise<void> {
+    const html = await file.text();
+    this.openHtml(file.name.replace(/\.html?$/i, ""), html);
   }
 
   private docButton(name: string, meta: string): HTMLButtonElement {
@@ -160,11 +194,24 @@ class Chrome {
 
   // --- reading mode ---------------------------------------------------------
 
+  /** Open a sample/fixture document (loaded by the frame via `?fixture=`). */
   open(fixture: string): void {
-    this.teardownReading(); // leak-safe regardless of caller
     addRecent(fixture);
-    this.currentFixture = fixture;
-    this.pendingRestore = loadPosition(fixture) ?? undefined;
+    this.startReading(fixture, undefined);
+  }
+
+  /** Open a document whose HTML the chrome supplies (dropped/picked file). Not
+   *  added to recents — dev can't reopen it without the file (native holds the
+   *  path). */
+  private openHtml(name: string, html: string): void {
+    this.startReading(name, html);
+  }
+
+  private startReading(name: string, html: string | undefined): void {
+    this.teardownReading(); // leak-safe regardless of caller
+    this.currentFixture = name;
+    this.currentHtml = html;
+    this.pendingRestore = loadPosition(name) ?? undefined;
     this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
@@ -210,19 +257,29 @@ class Chrome {
     q("[data-testid=present]").addEventListener("click", () => this.enterPresentation());
 
     const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
-    this.renderRemoteToggle(toggle, isRemoteAllowed(fixture));
+    this.renderRemoteToggle(toggle, isRemoteAllowed(name));
     toggle.addEventListener("click", () => this.toggleRemote(toggle));
 
-    this.frame = this.buildFrame(fixture);
+    this.frame = this.buildFrame();
     q("[data-testid=stage]").appendChild(this.frame);
 
     this.attachInput();
   }
 
-  /** Create the sandboxed content iframe for `fixture`, honoring its per-file
+  /** The content-frame URL for the current document, honoring its per-file
    *  "allow remote resources" setting (which selects the CSP the dev server
-   *  sends — see vite.config.ts / QE-1431). */
-  private buildFrame(fixture: string): HTMLIFrameElement {
+   *  sends — see vite.config.ts / QE-1431). Fixtures load via `?fixture=`;
+   *  opened files load a bare frame and receive their HTML via `loadDocument`. */
+  private contentUrl(): string {
+    const params = new URLSearchParams();
+    if (this.currentHtml === undefined && this.currentFixture) params.set("fixture", this.currentFixture);
+    if (this.currentFixture && isRemoteAllowed(this.currentFixture)) params.set("remote", "1");
+    const qs = params.toString();
+    return `/app/content.html${qs ? `?${qs}` : ""}`;
+  }
+
+  /** Create the sandboxed content iframe for the current document. */
+  private buildFrame(): HTMLIFrameElement {
     const iframe = document.createElement("iframe");
     iframe.className = "paper";
     iframe.dataset.testid = "paper";
@@ -239,12 +296,15 @@ class Chrome {
       // never reads iframe.contentDocument.
       this.transport = createTransport(win, window);
       this.unsub = this.transport.onMessage((msg) => this.onMessage(msg));
+      // An opened file has no ?fixture to fetch — hand its HTML to the frame.
+      if (this.currentHtml !== undefined) {
+        this.transport.send({ type: "loadDocument", html: this.currentHtml });
+      }
     });
 
     // src set before insertion => exactly one load event across engines (an
     // empty-src iframe can fire a spurious about:blank load on some engines).
-    const remote = isRemoteAllowed(fixture) ? "&remote=1" : "";
-    iframe.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}${remote}`;
+    iframe.src = this.contentUrl();
     return iframe;
   }
 
@@ -261,15 +321,15 @@ class Chrome {
   private toggleRemote(btn: HTMLButtonElement): void {
     const fixture = this.currentFixture;
     if (!fixture || !this.frame) return;
-    const on = !isRemoteAllowed(fixture);
-    setRemoteAllowed(fixture, on);
-    this.renderRemoteToggle(btn, on);
+    setRemoteAllowed(fixture, !isRemoteAllowed(fixture));
+    this.renderRemoteToggle(btn, isRemoteAllowed(fixture));
 
+    // Reload the same iframe under the new CSP; drop the old transport first.
+    // The load handler re-wires and (for opened files) re-sends the document.
     this.unsub?.();
     this.unsub = undefined;
     this.transport = undefined;
-    const remote = on ? "&remote=1" : "";
-    this.frame.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}${remote}`;
+    this.frame.src = this.contentUrl();
   }
 
   private teardownReading(): void {
@@ -280,6 +340,7 @@ class Chrome {
     this.els = undefined;
     this.frame = undefined;
     this.currentFixture = undefined;
+    this.currentHtml = undefined;
     this.pendingRestore = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
