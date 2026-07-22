@@ -25,7 +25,7 @@ export interface AnchorMessage {
 }
 
 /** Engine → chrome: an external link was activated in the content frame; the
- *  chrome opens it in the system browser (never inside Pager) — spec §3.4. */
+ *  chrome opens it in the system browser (never inside PageTML) — spec §3.4. */
 export interface OpenExternalMessage {
   v: typeof PROTOCOL_VERSION;
   type: "openExternal";
@@ -42,7 +42,7 @@ export interface ActivityMessage {
 
 /** Chrome → engine: deliver a document opened by the chrome (dropped or picked
  *  file) into the content frame, when it wasn't loaded via a `?fixture=`/
- *  `pager://` URL. The frame grafts this HTML and paginates it (QE-1428). */
+ *  `pagetml://` URL. The frame grafts this HTML and paginates it (QE-1428). */
 export interface LoadDocumentMessage {
   v: typeof PROTOCOL_VERSION;
   type: "loadDocument";
@@ -66,7 +66,7 @@ export interface CommandMessage {
 
 export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage | ActivityMessage;
 export type ChromeToEngine = CommandMessage | LoadDocumentMessage;
-export type PagerMessage = EngineToChrome | ChromeToEngine;
+export type PagetmlMessage = EngineToChrome | ChromeToEngine;
 
 /** A message payload without the protocol version — the transport stamps `v`,
  *  so callers never hand-write it. */
@@ -79,7 +79,7 @@ export type Outgoing =
   | Omit<LoadDocumentMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */
-export function isPagerMessage(data: unknown): data is PagerMessage {
+export function isPagetmlMessage(data: unknown): data is PagetmlMessage {
   return (
     typeof data === "object" &&
     data !== null &&
@@ -99,16 +99,16 @@ export function createTransport(remote: Window, local: Window = globalThis as un
     /** Send a payload; the transport stamps the protocol version (the module
      *  that defines the protocol owns the envelope). */
     send(msg: Outgoing) {
-      remote.postMessage({ ...msg, v: PROTOCOL_VERSION } as PagerMessage, origin);
+      remote.postMessage({ ...msg, v: PROTOCOL_VERSION } as PagetmlMessage, origin);
     },
-    onMessage(handler: (msg: PagerMessage) => void): () => void {
+    onMessage(handler: (msg: PagetmlMessage) => void): () => void {
       const listener = (ev: MessageEvent) => {
         // Only accept messages from the peer we're paired with — the window we
         // post to is the window we expect to hear from. This binds the channel
         // to the content frame and rejects spoofed messages from other frames
         // (sandbox threat model, spec §4.4).
         if (ev.source !== (remote as unknown as MessageEventSource)) return;
-        if (isPagerMessage(ev.data)) handler(ev.data);
+        if (isPagetmlMessage(ev.data)) handler(ev.data);
       };
       local.addEventListener("message", listener as EventListener);
       return () => local.removeEventListener("message", listener as EventListener);

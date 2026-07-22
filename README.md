@@ -1,9 +1,9 @@
-# Pager — pagination engine (Milestone 1)
+# PageTML — pagination engine (Milestone 1)
 
-Pager is a paginated HTML reader/presenter for macOS and Windows. This
+PageTML is a paginated HTML reader/presenter for macOS and Windows. This
 repository currently contains **Milestone 1: the shared pagination engine** —
 the platform-agnostic core that turns an arbitrary HTML document into discrete,
-navigable pages. (Linear project: *Pagetml Application*, milestone M1.)
+navigable pages. (Linear project: *PageTML Application*, milestone M1.)
 
 The engine is the product's core IP. It runs inside the (sandboxed) content
 frame in the real app; here it is exercised in headless browsers under

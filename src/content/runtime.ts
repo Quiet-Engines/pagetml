@@ -6,13 +6,13 @@
 //
 // The document reaches the runtime one of two ways:
 //  - `?fixture=<name>`: the runtime fetches the fixture and grafts it (dev
-//    stand-in for the `pager://` handler serving the file with the runtime
+//    stand-in for the `pagetml://` handler serving the file with the runtime
 //    injected).
 //  - a `loadDocument` message from the chrome: a file the user dropped or picked
 //    (QE-1428), whose HTML the chrome hands over directly.
 
 import { createPaginator, createTransport } from "../engine/index.js";
-import type { PagerMessage, Paginator } from "../engine/index.js";
+import type { PagetmlMessage, Paginator } from "../engine/index.js";
 import { installLinkHandling } from "./links.js";
 
 function graftHtml(html: string): void {
@@ -56,7 +56,7 @@ function boot(transport: Transport): void {
     { passive: true },
   );
 
-  transport.onMessage((msg: PagerMessage) => {
+  transport.onMessage((msg: PagetmlMessage) => {
     if (msg.type !== "command") return;
     const c = msg.command;
     switch (c.name) {
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
   }
 
   // No fixture: wait for the chrome to deliver an opened file, then boot.
-  const off = transport.onMessage((msg: PagerMessage) => {
+  const off = transport.onMessage((msg: PagetmlMessage) => {
     if (msg.type !== "loadDocument") return;
     off();
     graftHtml(msg.html);

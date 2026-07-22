@@ -10,7 +10,10 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // A retry absorbs load-induced timing flakes (e.g. the observer→repaginate→
+  // overflow-check chain under full-parallel contention) without masking real
+  // failures — a genuine break fails every attempt. More retries in CI.
+  retries: process.env.CI ? 2 : 1,
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:5179",

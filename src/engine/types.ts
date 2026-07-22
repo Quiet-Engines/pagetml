@@ -1,4 +1,4 @@
-// Shared types for the pagination engine (Pager Milestone 1).
+// Shared types for the pagination engine (PageTML Milestone 1).
 
 /**
  * A content anchor: a stable pointer into the document that survives

@@ -4,7 +4,7 @@ import { openApp } from "./helpers.js";
 // Sandbox test suite (QE-1454, spec §4.4, §7): attacks from the content frame
 // that MUST fail. These run against the dev sandbox (`allow-scripts
 // allow-same-origin`); the production frame is tighter (opaque origin,
-// allow-scripts only) and the pager:// path-traversal checks live in Rust
+// allow-scripts only) and the pagetml:// path-traversal checks live in Rust
 // (QE-1429) — noted where a check can't be exercised in the browser build.
 
 async function openContent(page: Page): Promise<Frame> {

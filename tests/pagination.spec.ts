@@ -10,7 +10,7 @@ test.describe("pagination invariants", () => {
     for (const vp of VIEWPORTS) {
       test(`${fixture} @ ${vp.w}x${vp.h} holds invariants`, async ({ page }) => {
         await loadFixture(page, fixture, vp.w, vp.h);
-        const report = await page.evaluate(() => window.__pager.invariants());
+        const report = await page.evaluate(() => window.__pagetml.invariants());
 
         expect(report.leafCount, "fixture should contain content").toBeGreaterThan(0);
         expect(report.pageCount, "should paginate to at least one page").toBeGreaterThanOrEqual(1);
@@ -29,16 +29,16 @@ test.describe("engine behavior", () => {
     // If the single top-level 100vh scroll container were not unwrapped, this
     // document would collapse to a single page (QE-1422).
     await loadFixture(page, "scroll-shell", 800, 600);
-    const pageCount = await page.evaluate(() => window.__pager.pageCount());
+    const pageCount = await page.evaluate(() => window.__pagetml.pageCount());
     expect(pageCount).toBeGreaterThan(1);
   });
 
   test("break-before: page starts a new page at a boundary", async ({ page }) => {
     await loadFixture(page, "breaks", 800, 600);
     const result = await page.evaluate(() => {
-      const h = window.__pager;
+      const h = window.__pagetml;
       const m = h.metrics();
-      const flow = document.querySelector("iframe")!.contentDocument!.querySelector(".pager-flow")!;
+      const flow = document.querySelector("iframe")!.contentDocument!.querySelector(".pagetml-flow")!;
       const sec2 = flow.querySelector("#sec2")!;
       const flowRect = flow.getBoundingClientRect();
       const left = sec2.getBoundingClientRect().left - flowRect.left;
@@ -52,7 +52,7 @@ test.describe("engine behavior", () => {
   test("navigation clamps at both ends", async ({ page }) => {
     await loadFixture(page, "prose", 800, 600);
     const res = await page.evaluate(() => {
-      const h = window.__pager;
+      const h = window.__pagetml;
       h.first();
       const atFirst = h.currentPage();
       h.prev();
@@ -71,7 +71,7 @@ test.describe("engine behavior", () => {
 
   test("protocol schema guard accepts valid and rejects invalid messages", async ({ page }) => {
     await loadFixture(page, "prose", 800, 600);
-    const res = await page.evaluate(() => window.__pager.checkProtocol());
+    const res = await page.evaluate(() => window.__pagetml.checkProtocol());
     expect(res.valid).toBe(true);
     expect(res.invalidType).toBe(false);
     expect(res.wrongVersion).toBe(false);
@@ -79,7 +79,7 @@ test.describe("engine behavior", () => {
 
   test("media on other pages is paused when turned away from", async ({ page }) => {
     await loadFixture(page, "prose", 800, 600);
-    const paused = await page.evaluate(() => window.__pager.testMediaPause());
+    const paused = await page.evaluate(() => window.__pagetml.testMediaPause());
     expect(paused).toBe(true);
   });
 });

@@ -93,7 +93,7 @@ test("content growth while locked raises the overflow indicator", async ({ page 
   // Grow the (locked) document well past its frozen boundaries.
   const frame = page.frames().find((f) => f.url().includes("/app/content.html"))!;
   await frame.evaluate(() => {
-    const flow = document.querySelector(".pager-flow")!;
+    const flow = document.querySelector(".pagetml-flow")!;
     for (let i = 0; i < 40; i++) {
       const p = document.createElement("p");
       p.textContent = `Injected overflow content block ${i}. `.repeat(30);

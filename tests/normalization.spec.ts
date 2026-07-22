@@ -12,8 +12,8 @@ test("nested scroll-shell (grandchild of body) is unwrapped into multiple pages"
   // The old one-level-deep scan missed this; it would collapse to a single page.
   await loadFixture(page, "scroll-shell-nested", 800, 600);
   const res = await page.evaluate(() => ({
-    pageCount: window.__pager.pageCount(),
-    overflow: window.__pager.computedStyle("#app", "overflow-y"),
+    pageCount: window.__pagetml.pageCount(),
+    overflow: window.__pagetml.computedStyle("#app", "overflow-y"),
   }));
   expect(res.pageCount).toBeGreaterThan(1);
   expect(res.overflow).toBe("visible");
@@ -22,9 +22,9 @@ test("nested scroll-shell (grandchild of body) is unwrapped into multiple pages"
 test("mid-document sticky keeps its page instead of pinning to the origin", async ({ page }) => {
   await loadFixture(page, "sticky-midflow", 800, 600);
   const res = await page.evaluate(() => ({
-    stickyPage: window.__pager.pageOf("#midsticky"),
-    position: window.__pager.computedStyle("#midsticky", "position"),
-    pageCount: window.__pager.pageCount(),
+    stickyPage: window.__pagetml.pageOf("#midsticky"),
+    position: window.__pagetml.computedStyle("#midsticky", "position"),
+    pageCount: window.__pagetml.pageCount(),
   }));
   // Converted off sticky (which is inconsistent inside columns)...
   expect(res.position).toBe("absolute");
@@ -39,7 +39,7 @@ test("mid-document sticky keeps its page instead of pinning to the origin", asyn
 test("script-injected scroll trap is normalized on reflow, not just at setup", async ({ page }) => {
   await loadFixture(page, "prose", 800, 600);
   const res = await page.evaluate(() => {
-    const h = window.__pager;
+    const h = window.__pagetml;
     const before = h.pageCount();
     h.injectScrollTrap(); // adds a 100vh overflow:auto shell after load, then reflows
     return {

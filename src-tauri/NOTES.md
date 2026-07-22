@@ -3,7 +3,7 @@
 **This scaffold was written without a build environment: it has NOT been
 compiled or run.** It's a correct-as-possible starting point for the native
 shell (QE-1427/1428/1429). Expect to fix compile errors and adjust Tauri v2 API
-details on the first `cargo` run. The security-critical logic — the `pager://`
+details on the first `cargo` run. The security-critical logic — the `pagetml://`
 path-traversal guard and the default-deny CSP in `src/lib.rs` — is the part
 worth reviewing closely; the wiring around it is the part most likely to need
 small changes.
@@ -25,8 +25,8 @@ use `cargo tauri dev` instead.
    `npm run tauri icon path/to/logo.png` (creates `src-tauri/icons/`). The build
    will fail until these exist.
 
-2. **The content runtime resource.** The `pager://` handler injects
-   `pager://localhost/__pager__/runtime.js` and serves it from the Tauri
+2. **The content runtime resource.** The `pagetml://` handler injects
+   `pagetml://localhost/__pagetml__/runtime.js` and serves it from the Tauri
    resource dir. Build it first: `npm run build:runtime` → writes
    `src-tauri/resources/content-runtime.js` (bundled via
    `bundle.resources`). Verify the output is a self-contained ES module (no bare
@@ -59,12 +59,12 @@ use `cargo tauri dev` instead.
    - `capabilities/default.json` permission identifiers (`core:*`, `dialog:*`).
 
 7. **Per-file remote toggle.** `set_remote` stores a single flag in app state;
-   the chrome calls it before reloading a native document so the `pager://` CSP
+   the chrome calls it before reloading a native document so the `pagetml://` CSP
    header relaxes to `https:`. For multiple documents, key it per document.
 
 ## What maps to what
 
-- `src/lib.rs` `handle_pager` → QE-1429 (`pager://` + Rust traversal guard + CSP).
+- `src/lib.rs` `handle_pagetml` → QE-1429 (`pagetml://` + Rust traversal guard + CSP).
 - `open_path` / `open_dialog` / CLI arg / file association → QE-1428 (native open).
 - `WebviewWindowBuilder` in `setup` + `tauri.conf.json` → QE-1427 (window/menus).
 - `src/chrome/native.ts` → the frontend side of the bridge (inert in the browser

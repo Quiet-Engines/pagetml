@@ -7,7 +7,7 @@
 import {
   createPaginator,
   elementAtPath,
-  isPagerMessage,
+  isPagetmlMessage,
   isReplacedElement,
   measureRectInFlow,
   pageAtX,
@@ -16,7 +16,7 @@ import {
 } from "../src/engine/index.js";
 import type { Anchor } from "../src/engine/index.js";
 
-const MARK_ATTR = "data-pager-mark";
+const MARK_ATTR = "data-pagetml-mark";
 
 interface Offender {
   tag: string;
@@ -38,12 +38,12 @@ interface InvariantReport {
 
 declare global {
   interface Window {
-    __pager: PagerHarness;
-    __pagerReady: boolean;
+    __pagetml: PagetmlHarness;
+    __pagetmlReady: boolean;
   }
 }
 
-class PagerHarness {
+class PagetmlHarness {
   private iframe!: HTMLIFrameElement;
   private engine!: Paginator;
   private flow!: HTMLElement;
@@ -190,9 +190,9 @@ class PagerHarness {
     const wrongVersion = { v: 999, type: "command", command: { name: "next" } };
     const notAMessage = { hello: "world" };
     return {
-      valid: isPagerMessage(good),
-      invalidType: isPagerMessage(notAMessage),
-      wrongVersion: isPagerMessage(wrongVersion),
+      valid: isPagetmlMessage(good),
+      invalidType: isPagetmlMessage(notAMessage),
+      wrongVersion: isPagetmlMessage(wrongVersion),
     };
   }
 
@@ -264,8 +264,8 @@ class PagerHarness {
 }
 
 async function boot() {
-  const harness = new PagerHarness();
-  window.__pager = harness;
+  const harness = new PagetmlHarness();
+  window.__pagetml = harness;
   const params = new URLSearchParams(location.search);
   const fixture = params.get("fixture");
   const w = Number(params.get("w") ?? 800);
@@ -273,7 +273,7 @@ async function boot() {
   if (fixture) {
     await harness.load(fixture, w, h);
   }
-  window.__pagerReady = true;
+  window.__pagetmlReady = true;
 }
 
 void boot();

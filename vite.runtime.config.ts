@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 // Builds the content-frame runtime (engine + runtime) into a single ES module
-// that the pager:// handler injects into every served document. Output lands in
+// that the pagetml:// handler injects into every served document. Output lands in
 // src-tauri/resources/ and is bundled as a Tauri resource (see tauri.conf.json
 // `bundle.resources`), so the Rust handler can read it from the resource dir.
 //

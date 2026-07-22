@@ -6,7 +6,7 @@
 // pass (not just once at setup), so script-injected content is normalized too
 // (spec §3.4).
 
-const BASE_STYLE_ID = "pager-base-style";
+const BASE_STYLE_ID = "pagetml-base-style";
 
 /**
  * Inject the engine's base stylesheet into the content document. It:

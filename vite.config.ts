@@ -2,16 +2,16 @@ import { defineConfig, type Plugin } from "vite";
 
 // Content-Security-Policy for the content frame (spec §4.4, QE-1431).
 //
-// The real app serves the user's document over `pager://` and sets this header
+// The real app serves the user's document over `pagetml://` and sets this header
 // on that response; here a dev middleware sets the same header on
 // `/app/content.html` so the default-deny behavior and the per-file "allow
 // remote resources" relaxation are exercised the same way.
 //
-// `'self'` is the content frame's own origin — `pager://<doc>` in production,
+// `'self'` is the content frame's own origin — `pagetml://<doc>` in production,
 // the dev server here — so same-origin document assets load while arbitrary
 // remote hosts are blocked. The toggle adds `https:` to the fetching
 // directives. (Dev also needs 'unsafe-eval' / ws: for Vite's module runtime and
-// HMR; production's policy is tighter, keyed only to pager:.)
+// HMR; production's policy is tighter, keyed only to pagetml:.)
 function contentCsp(allowRemote: boolean): string {
   const remote = allowRemote ? " https:" : "";
   return [
@@ -27,7 +27,7 @@ function contentCsp(allowRemote: boolean): string {
 
 function contentCspPlugin(): Plugin {
   return {
-    name: "pager-content-csp",
+    name: "pagetml-content-csp",
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url ?? "";

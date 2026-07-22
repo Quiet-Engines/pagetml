@@ -4,18 +4,18 @@
 // schema. It never touches the iframe's document: navigation goes out as
 // `command` messages, and page state comes back as `state`/`anchor` messages.
 //
-// (Presentation mode is M3; the Tauri shell, real file open, pager:// and
+// (Presentation mode is M3; the Tauri shell, real file open, pagetml:// and
 // persistence are the native M2 pieces, deferred until there's a build env.)
 
 import { createTransport } from "../engine/index.js";
-import type { Anchor, PageState, PagerMessage } from "../engine/index.js";
+import type { Anchor, PageState, PagetmlMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
 import { initNativeShell, isNative, nativeOpenDialog, nativeSetRemote } from "./native.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
 // fixture corpus stands in for "documents on disk".
 const SAMPLE_DOCS = FIXTURES;
-const RECENTS_KEY = "pager.recents";
+const RECENTS_KEY = "pagetml.recents";
 
 function getRecents(): string[] {
   try {
@@ -38,7 +38,7 @@ function addRecent(name: string): void {
 // The "allow remote resources" toggle is off by default and remembered per file
 // (spec §4.4). In the real app this per-file preference lives in the Tauri
 // layer alongside recents; in dev it is localStorage.
-const REMOTE_KEY = (name: string) => `pager.remote.${name}`;
+const REMOTE_KEY = (name: string) => `pagetml.remote.${name}`;
 function isRemoteAllowed(name: string): boolean {
   try {
     return localStorage.getItem(REMOTE_KEY(name)) === "1";
@@ -57,7 +57,7 @@ function setRemoteAllowed(name: string, on: boolean): void {
 // Last-read position, stored per file as a content anchor so it survives
 // repagination and restarts (spec §3.2, QE-1434). The Tauri layer owns this in
 // the real app; in dev it is localStorage.
-const POS_KEY = (name: string) => `pager.pos.${name}`;
+const POS_KEY = (name: string) => `pagetml.pos.${name}`;
 function loadPosition(name: string): Anchor | null {
   try {
     const raw = localStorage.getItem(POS_KEY(name));
@@ -76,7 +76,7 @@ function savePosition(name: string, anchor: Anchor): void {
   }
 }
 
-type Command = Extract<PagerMessage, { type: "command" }>["command"];
+type Command = Extract<PagetmlMessage, { type: "command" }>["command"];
 
 class Chrome {
   private readonly root: HTMLElement;
@@ -90,9 +90,9 @@ class Chrome {
    *  frame on every load, e.g. after a remote-toggle reload). Undefined for
    *  fixtures, which the frame loads itself via `?fixture=`. */
   private currentHtml?: string;
-  /** For a document served natively over pager://, the URL the frame loads
+  /** For a document served natively over pagetml://, the URL the frame loads
    *  directly (the runtime is injected server-side). Undefined otherwise. */
-  private currentPagerUrl?: string;
+  private currentPagetmlUrl?: string;
   /** A saved position to restore once the freshly-opened document is ready. */
   private pendingRestore?: Anchor;
   private wheelAccum = 0;
@@ -124,7 +124,7 @@ class Chrome {
     initNativeShell((name, url) => this.openNative(name, url));
   }
 
-  /** Open a document served natively over pager:// (Tauri shell). */
+  /** Open a document served natively over pagetml:// (Tauri shell). */
   private openNative(name: string, url: string): void {
     this.startReading(name, undefined, url);
   }
@@ -138,7 +138,7 @@ class Chrome {
     this.root.innerHTML = `
       <div class="start" data-testid="start">
         <div>
-          <div class="wordmark">Pager<span class="dot">.</span></div>
+          <div class="wordmark">PageTML<span class="dot">.</span></div>
           <div class="tagline">A paginated reader for local HTML.</div>
         </div>
         <div class="dropzone" data-testid="dropzone">
@@ -220,11 +220,11 @@ class Chrome {
     this.startReading(name, html);
   }
 
-  private startReading(name: string, html: string | undefined, pagerUrl?: string): void {
+  private startReading(name: string, html: string | undefined, pagetmlUrl?: string): void {
     this.teardownReading(); // leak-safe regardless of caller
     this.currentFixture = name;
     this.currentHtml = html;
-    this.currentPagerUrl = pagerUrl;
+    this.currentPagetmlUrl = pagetmlUrl;
     this.pendingRestore = loadPosition(name) ?? undefined;
     this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
@@ -242,7 +242,7 @@ class Chrome {
         <div class="jump" data-testid="jump" hidden></div>
         <div class="overflow-flag" data-testid="overflow-flag" hidden>Content overflow — pagination locked</div>
         <div class="statusbar">
-          <button class="back" data-testid="back">Pager<span class="dot">.</span></button>
+          <button class="back" data-testid="back">PageTML<span class="dot">.</span></button>
           <span class="counter" data-testid="counter">– / –</span>
           <span class="chip" data-testid="chip">Reading</span>
           <button class="toggle" data-testid="remote-toggle" aria-pressed="false">Remote off</button>
@@ -285,9 +285,9 @@ class Chrome {
    *  sends — see vite.config.ts / QE-1431). Fixtures load via `?fixture=`;
    *  opened files load a bare frame and receive their HTML via `loadDocument`. */
   private contentUrl(): string {
-    // A natively-served document loads its pager:// URL directly (runtime is
+    // A natively-served document loads its pagetml:// URL directly (runtime is
     // injected by the Rust handler; remote CSP is set there via set_remote).
-    if (this.currentPagerUrl) return this.currentPagerUrl;
+    if (this.currentPagetmlUrl) return this.currentPagetmlUrl;
     const params = new URLSearchParams();
     if (this.currentHtml === undefined && this.currentFixture) params.set("fixture", this.currentFixture);
     if (this.currentFixture && isRemoteAllowed(this.currentFixture)) params.set("remote", "1");
@@ -340,8 +340,8 @@ class Chrome {
     if (!fixture || !this.frame) return;
     setRemoteAllowed(fixture, !isRemoteAllowed(fixture));
     this.renderRemoteToggle(btn, isRemoteAllowed(fixture));
-    // Native docs: the CSP is a pager:// response header, so tell the shell.
-    if (this.currentPagerUrl) nativeSetRemote(isRemoteAllowed(fixture));
+    // Native docs: the CSP is a pagetml:// response header, so tell the shell.
+    if (this.currentPagetmlUrl) nativeSetRemote(isRemoteAllowed(fixture));
 
     // Reload the same iframe under the new CSP; drop the old transport first.
     // The load handler re-wires and (for opened files) re-sends the document.
@@ -360,14 +360,14 @@ class Chrome {
     this.frame = undefined;
     this.currentFixture = undefined;
     this.currentHtml = undefined;
-    this.currentPagerUrl = undefined;
+    this.currentPagetmlUrl = undefined;
     this.pendingRestore = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
   }
 
-  private onMessage(msg: PagerMessage): void {
+  private onMessage(msg: PagetmlMessage): void {
     if (msg.type === "state") {
       this.state = msg.state;
       this.updateStatus();
@@ -381,7 +381,7 @@ class Chrome {
       // Persist the reader's position per file (spec §3.2, QE-1434).
       if (this.currentFixture && msg.anchor) savePosition(this.currentFixture, msg.anchor);
     } else if (msg.type === "openExternal") {
-      // External links never open inside Pager. In the real app the Tauri shell
+      // External links never open inside PageTML. In the real app the Tauri shell
       // hands this to the OS default browser; in the browser build we open a new
       // tab. `noopener` severs the link back to this window.
       window.open(msg.url, "_blank", "noopener,noreferrer");

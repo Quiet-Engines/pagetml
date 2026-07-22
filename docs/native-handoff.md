@@ -34,7 +34,7 @@ npx playwright install --with-deps chromium webkit   # both engines locally
 1. **QE-1427 — Tauri v2 shell.** `src-tauri/` with `tauri.conf.json` pointing its
    frontend at this repo's dev server / built `app/`. Window, menus, fullscreen
    and display management. This is the container everything else plugs into.
-2. **QE-1429 — `pager://` protocol handler (Rust).** Serve the opened file and
+2. **QE-1429 — `pagetml://` protocol handler (Rust).** Serve the opened file and
    its sibling assets, **rejecting path traversal in Rust**, and inject the
    content runtime (`src/content/runtime.ts`, built). This replaces the dev
    `graftFixture`/`loadDocument` stand-ins and makes the CSP header, script
@@ -56,13 +56,13 @@ npx playwright install --with-deps chromium webkit   # both engines locally
 
 - **Message schema** (`src/engine/messages.ts`): the whole content↔chrome
   contract, versioned. `loadDocument` (chrome→content) is how the shell hands a
-  file's HTML to the frame; the `pager://` handler can instead serve it directly.
+  file's HTML to the frame; the `pagetml://` handler can instead serve it directly.
 - **CSP** (`vite.config.ts` `contentCsp()`): the exact default-deny + `https:`
-  relaxation to reproduce as a `pager://` response header.
+  relaxation to reproduce as a `pagetml://` response header.
 - **Sandbox tests** (`tests/sandbox.spec.ts`): the attacks that must keep
-  failing; add the Rust-side `pager://` path-traversal tests alongside.
+  failing; add the Rust-side `pagetml://` path-traversal tests alongside.
 - **Content runtime** (`src/content/runtime.ts`): `graftFixture` is dev-only
-  scaffolding to delete once `pager://` serves the real document (scripts then
+  scaffolding to delete once `pagetml://` serves the real document (scripts then
   run for real).
 
 ## Running what exists
