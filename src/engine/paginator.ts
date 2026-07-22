@@ -30,6 +30,7 @@ export class Paginator {
   private _pageCount = 1;
   private _currentPage = 0;
   private _locked = false;
+  private _overflow = false;
 
   /** Continuously-updated anchor for the current page; used to keep position
    *  across repagination (resize / mutation). */
@@ -153,6 +154,8 @@ export class Paginator {
     // write doesn't force a second layout for the read that follows.
     this.captureCurrentAnchor();
     this.applyTransform(false);
+    this._overflow = false; // fresh boundaries after a (re)pagination
+    this.pauseOffscreenMedia();
     this.emit();
   }
 
@@ -176,7 +179,24 @@ export class Paginator {
       pageCount: this._pageCount,
       currentPage: this._currentPage,
       locked: this._locked,
+      overflow: this._overflow,
     });
+  }
+
+  get overflow(): boolean {
+    return this._overflow;
+  }
+
+  /** Pause `video`/`audio` on pages other than the current one (spec §3.4,
+   *  QE-1443). Media is never auto-played — only paused when turned away from. */
+  private pauseOffscreenMedia(): void {
+    const media = this.flow.querySelectorAll<HTMLMediaElement>("video, audio");
+    if (media.length === 0) return;
+    const flowOrigin = this.flow.getBoundingClientRect();
+    for (const m of media) {
+      const page = pageAtX(measureInFlow(m, this.flow, flowOrigin).left, this.stride);
+      if (page !== this._currentPage && !m.paused) m.pause();
+    }
   }
 
   // --- navigation -------------------------------------------------------------
@@ -187,6 +207,7 @@ export class Paginator {
     // layout flush; measurement is transform-independent so order is safe.
     this.captureCurrentAnchor();
     this.applyTransform(animate);
+    this.pauseOffscreenMedia();
     this.emit();
   }
   next(): void {
@@ -219,17 +240,34 @@ export class Paginator {
     return pageAtX(measureInFlow(el, this.flow).left, this.stride);
   }
 
-  // --- locking (presentation mode boundary lock lives in M3; here we only
-  //     honor the flag so repagination is suppressed) --------------------------
+  // --- locking (presentation mode, QE-1437/1442) ------------------------------
+  // When locked, page boundaries are frozen: resize/mutation no longer
+  // repaginate. Instead, if content grows past the locked boundaries the current
+  // page confines the overflow (clipped by the flow) and an overflow flag is
+  // raised so the chrome can show an indicator.
 
   lock(): void {
+    // Repaginate once at the current (display) size, then freeze the boundaries.
+    this.reflowNow();
     this._locked = true;
+    this._overflow = false;
     this.emit();
   }
   unlock(): void {
     this._locked = false;
+    this._overflow = false;
     this.emit();
     this.scheduleReflow();
+  }
+
+  /** While locked, detect whether content has grown beyond the frozen page
+   *  count and raise/clear the overflow flag (without repaginating). */
+  private checkOverflow(): void {
+    const grown = pageCountForExtent(this.flow.scrollWidth, this.stride, this.gap) > this._pageCount;
+    if (grown !== this._overflow) {
+      this._overflow = grown;
+      this.emit();
+    }
   }
 
   // --- live repagination ------------------------------------------------------
@@ -259,11 +297,12 @@ export class Paginator {
   private onWinResize = (): void => this.scheduleReflow();
 
   private scheduleReflow(): void {
-    if (this._locked) return; // suppressed while locked
     if (this.reflowTimer !== undefined) this.win.clearTimeout(this.reflowTimer);
     this.reflowTimer = this.win.setTimeout(() => {
       this.reflowTimer = undefined;
-      this.paginate();
+      // Locked (presentation): boundaries stay frozen; only track overflow.
+      if (this._locked) this.checkOverflow();
+      else this.paginate();
     }, 50);
   }
 

@@ -76,4 +76,10 @@ test.describe("engine behavior", () => {
     expect(res.invalidType).toBe(false);
     expect(res.wrongVersion).toBe(false);
   });
+
+  test("media on other pages is paused when turned away from", async ({ page }) => {
+    await loadFixture(page, "prose", 800, 600);
+    const paused = await page.evaluate(() => window.__pager.testMediaPause());
+    expect(paused).toBe(true);
+  });
 });

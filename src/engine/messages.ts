@@ -32,6 +32,14 @@ export interface OpenExternalMessage {
   url: string;
 }
 
+/** Engine → chrome: pointer activity inside the content frame. In presentation
+ *  mode the content fills the screen, so the chrome can't see mouse movement
+ *  directly; the frame forwards it so the auto-hiding cursor works (QE-1441). */
+export interface ActivityMessage {
+  v: typeof PROTOCOL_VERSION;
+  type: "activity";
+}
+
 /** Chrome → engine: navigation and mode commands. */
 export interface CommandMessage {
   v: typeof PROTOCOL_VERSION;
@@ -47,7 +55,7 @@ export interface CommandMessage {
     | { name: "unlock" };
 }
 
-export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage;
+export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage | ActivityMessage;
 export type ChromeToEngine = CommandMessage;
 export type PagerMessage = EngineToChrome | ChromeToEngine;
 
@@ -57,6 +65,7 @@ export type Outgoing =
   | Omit<StateMessage, "v">
   | Omit<AnchorMessage, "v">
   | Omit<OpenExternalMessage, "v">
+  | Omit<ActivityMessage, "v">
   | Omit<CommandMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */

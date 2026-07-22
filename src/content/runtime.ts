@@ -39,6 +39,21 @@ async function main(): Promise<void> {
   // Internal links jump within the document; external links go to the chrome.
   installLinkHandling(document, engine, (url) => transport.send({ type: "openExternal", url }));
 
+  // Forward pointer activity so the chrome's auto-hiding cursor works even when
+  // the content frame fills the screen in presentation mode (QE-1441).
+  // Throttled: at most one message per ~200ms.
+  let lastActivity = 0;
+  window.addEventListener(
+    "mousemove",
+    (e) => {
+      const now = e.timeStamp;
+      if (now - lastActivity < 200) return;
+      lastActivity = now;
+      transport.send({ type: "activity" });
+    },
+    { passive: true },
+  );
+
   transport.onMessage((msg: PagerMessage) => {
     if (msg.type !== "command") return;
     const c = msg.command;
