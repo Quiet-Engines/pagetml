@@ -18,8 +18,9 @@ const RECENTS_KEY = "pager.recents";
 
 function getRecents(): string[] {
   try {
-    const raw = localStorage.getItem(RECENTS_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]") as unknown;
+    // Tolerate corrupt/tampered storage: only accept an array of strings.
+    return Array.isArray(parsed) ? parsed.filter((n): n is string => typeof n === "string") : [];
   } catch {
     return [];
   }
@@ -41,6 +42,7 @@ class Chrome {
   private transport?: ReturnType<typeof createTransport>;
   private unsub?: () => void;
   private keyHandler?: (e: KeyboardEvent) => void;
+  private frame?: HTMLIFrameElement;
   private wheelAccum = 0;
   private wheelLock = false;
   // Status-bar elements, cached when reading mode is built (updated on every
@@ -55,21 +57,8 @@ class Chrome {
 
   showStart(): void {
     this.teardownReading();
-    const recents = getRecents();
-    const docItem = (name: string, meta: string) =>
-      `<button class="recent" data-doc="${name}">
-         <span class="glyph">▤</span>
-         <span class="name">${name}.html</span>
-         <span class="meta">${meta}</span>
-       </button>`;
 
-    // getRecents() is already deduped, so the only dedup needed is recents vs.
-    // samples: a Set-union preserves recents-first order and drops repeats.
-    const recentSet = new Set(recents);
-    const rows = [...new Set([...recents, ...SAMPLE_DOCS])].map((n) =>
-      docItem(n, recentSet.has(n) ? "recent" : "sample"),
-    );
-
+    // Static shell only — no interpolation of document names into HTML.
     this.root.innerHTML = `
       <div class="start" data-testid="start">
         <div>
@@ -79,13 +68,37 @@ class Chrome {
         <div class="dropzone">Drop an <strong>.html</strong> file here, or pick one below.</div>
         <div class="recents">
           <h2>Documents</h2>
-          <div class="recent-list">${rows.join("")}</div>
+          <div class="recent-list"></div>
         </div>
       </div>`;
 
-    for (const btn of this.root.querySelectorAll<HTMLButtonElement>("[data-doc]")) {
-      btn.addEventListener("click", () => this.open(btn.dataset.doc!));
+    // Document names are user-controlled (filenames), so build each button via
+    // the DOM — textContent / dataset never interpret markup — rather than
+    // interpolating names into an innerHTML string.
+    const recents = getRecents();
+    const recentSet = new Set(recents);
+    const list = this.root.querySelector(".recent-list")!;
+    for (const name of new Set([...recents, ...SAMPLE_DOCS])) {
+      list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
     }
+  }
+
+  private docButton(name: string, meta: string): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.className = "recent";
+    btn.dataset.doc = name;
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.textContent = "▤";
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = `${name}.html`;
+    const metaEl = document.createElement("span");
+    metaEl.className = "meta";
+    metaEl.textContent = meta;
+    btn.append(glyph, label, metaEl);
+    btn.addEventListener("click", () => this.open(name));
+    return btn;
   }
 
   // --- reading mode ---------------------------------------------------------
@@ -117,15 +130,20 @@ class Chrome {
     const prev = q<HTMLButtonElement>("[data-testid=prev]");
     const next = q<HTMLButtonElement>("[data-testid=next]");
     this.els = { counter: q("[data-testid=counter]"), prev, next };
+    this.frame = iframe;
     prev.addEventListener("click", () => this.prev());
     next.addEventListener("click", () => this.next());
     q("[data-testid=back]").addEventListener("click", () => this.showStart());
 
     iframe.addEventListener("load", () => {
       const win = iframe.contentWindow;
-      if (!win) return;
-      // Post to the frame; listen on our own window. This is the ONLY channel
-      // to the content — the chrome never reads iframe.contentDocument.
+      // Ignore a late load after the reader navigated away (teardown cleared
+      // this.frame or a newer open() replaced it) — otherwise we'd wire a stale
+      // transport and leak its window listener.
+      if (!win || this.frame !== iframe) return;
+      // Post to the frame; listen on our own window (and only accept messages
+      // from this frame). This is the ONLY channel to the content — the chrome
+      // never reads iframe.contentDocument.
       this.transport = createTransport(win, window);
       this.unsub = this.transport.onMessage((msg) => this.onMessage(msg));
     });
@@ -138,6 +156,8 @@ class Chrome {
     this.unsub = undefined;
     this.transport = undefined;
     this.els = undefined;
+    this.frame = undefined;
+    this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
   }
@@ -190,11 +210,14 @@ class Chrome {
       "wheel",
       (e) => {
         e.preventDefault();
-        this.wheelAccum += e.deltaY;
+        // Ignore events entirely while locked (don't accumulate), so residual
+        // momentum after a turn can't trigger a stray extra turn.
         if (this.wheelLock) return;
-        if (Math.abs(this.wheelAccum) < 24) return;
-        (this.wheelAccum > 0 ? this.next() : this.prev());
+        this.wheelAccum += e.deltaY;
+        if (Math.abs(this.wheelAccum) < 24) return; // small-scroll deadzone
+        const forward = this.wheelAccum > 0;
         this.wheelAccum = 0;
+        forward ? this.next() : this.prev();
         // Coalesce a burst of wheel events into one discrete page turn.
         this.wheelLock = true;
         window.setTimeout(() => (this.wheelLock = false), 260);

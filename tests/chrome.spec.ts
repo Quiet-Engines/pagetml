@@ -72,3 +72,44 @@ test("back returns to the start screen", async ({ page }) => {
   await page.getByTestId("back").click();
   await expect(page.getByTestId("start")).toBeVisible();
 });
+
+test("document names render as text, not HTML (no injection into the chrome)", async ({ page }) => {
+  // A recent whose name contains markup must not execute or create elements.
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "pager.recents",
+      JSON.stringify(['<img src=x onerror="window.__xss=1">evil']),
+    );
+  });
+  await page.goto("/app/index.html");
+  await expect(page.getByTestId("start")).toBeVisible();
+
+  expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
+  expect(await page.locator(".recent-list img").count()).toBe(0);
+  // The name is present as literal text on a real button.
+  await expect(page.locator(".recent-list")).toContainText("<img");
+  expect(await page.locator(".recent-list button.recent").count()).toBeGreaterThan(0);
+});
+
+test("corrupt recents storage does not break the start screen", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("pager.recents", '"not-an-array"'));
+  await page.goto("/app/index.html");
+  await expect(page.getByTestId("start")).toBeVisible();
+  await expect(page.locator("[data-doc=prose]")).toBeVisible();
+});
+
+test("chrome ignores spoofed messages not from the content frame", async ({ page }) => {
+  await page.goto("/app/index.html");
+  await page.locator("[data-doc=prose]").click();
+  const counter = page.getByTestId("counter");
+  await expect(counter).toHaveText(/^1 \/ \d+$/);
+  const before = (await counter.textContent())!;
+
+  // Post a fake state from the chrome window itself — ev.source is this window,
+  // not the content iframe, so the transport must reject it.
+  await page.evaluate(() =>
+    window.postMessage({ v: 1, type: "state", state: { pageCount: 9999, currentPage: 500, locked: false } }, "*"),
+  );
+  await page.waitForTimeout(120);
+  await expect(counter).toHaveText(before); // unchanged
+});

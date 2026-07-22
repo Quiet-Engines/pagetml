@@ -75,6 +75,11 @@ export function createTransport(remote: Window, local: Window = globalThis as un
     },
     onMessage(handler: (msg: PagerMessage) => void): () => void {
       const listener = (ev: MessageEvent) => {
+        // Only accept messages from the peer we're paired with — the window we
+        // post to is the window we expect to hear from. This binds the channel
+        // to the content frame and rejects spoofed messages from other frames
+        // (sandbox threat model, spec §4.4).
+        if (ev.source !== (remote as unknown as MessageEventSource)) return;
         if (isPagerMessage(ev.data)) handler(ev.data);
       };
       local.addEventListener("message", listener as EventListener);
