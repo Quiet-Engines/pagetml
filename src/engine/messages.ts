@@ -43,6 +43,13 @@ export type EngineToChrome = StateMessage | AnchorMessage;
 export type ChromeToEngine = CommandMessage;
 export type PagerMessage = EngineToChrome | ChromeToEngine;
 
+/** A message payload without the protocol version — the transport stamps `v`,
+ *  so callers never hand-write it. */
+export type Outgoing =
+  | Omit<StateMessage, "v">
+  | Omit<AnchorMessage, "v">
+  | Omit<CommandMessage, "v">;
+
 /** Narrowing guard for anything arriving over postMessage. */
 export function isPagerMessage(data: unknown): data is PagerMessage {
   return (
@@ -53,18 +60,30 @@ export function isPagerMessage(data: unknown): data is PagerMessage {
   );
 }
 
-/** A thin postMessage transport. `target` is the other side's window. */
-export function createTransport(target: Window, origin = "*") {
+/**
+ * A thin postMessage transport. `remote` is the other side's window (where
+ * outgoing messages are posted); `local` is this side's window (where incoming
+ * `message` events actually fire — they arrive on the receiver, not the
+ * sender). Defaults `local` to the global window.
+ */
+export function createTransport(remote: Window, local: Window = globalThis as unknown as Window, origin = "*") {
   return {
-    send(msg: PagerMessage) {
-      target.postMessage(msg, origin);
+    /** Send a payload; the transport stamps the protocol version (the module
+     *  that defines the protocol owns the envelope). */
+    send(msg: Outgoing) {
+      remote.postMessage({ ...msg, v: PROTOCOL_VERSION } as PagerMessage, origin);
     },
     onMessage(handler: (msg: PagerMessage) => void): () => void {
       const listener = (ev: MessageEvent) => {
+        // Only accept messages from the peer we're paired with — the window we
+        // post to is the window we expect to hear from. This binds the channel
+        // to the content frame and rejects spoofed messages from other frames
+        // (sandbox threat model, spec §4.4).
+        if (ev.source !== (remote as unknown as MessageEventSource)) return;
         if (isPagerMessage(ev.data)) handler(ev.data);
       };
-      target.addEventListener("message", listener as EventListener);
-      return () => target.removeEventListener("message", listener as EventListener);
+      local.addEventListener("message", listener as EventListener);
+      return () => local.removeEventListener("message", listener as EventListener);
     },
   };
 }
