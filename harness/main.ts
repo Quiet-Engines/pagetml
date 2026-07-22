@@ -165,6 +165,25 @@ class PagerHarness {
     this.engine.reflowNow();
   }
 
+  /** Inject a "playing" media element, turn the page away from it, and report
+   *  whether the engine paused it (QE-1443). A real <video> reports paused=true
+   *  and needs a network source to play, so we simulate a playing element. */
+  testMediaPause(): boolean {
+    const doc = this.flow.ownerDocument;
+    const video = doc.createElement("video");
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    let paused = false;
+    video.pause = () => {
+      paused = true;
+    };
+    this.flow.appendChild(video);
+    this.engine.reflowNow();
+    const page = this.engine.pageForElement(video);
+    const away = page === 0 ? Math.max(1, this.engine.pageCount - 1) : 0;
+    this.engine.goToPage(away, false);
+    return paused;
+  }
+
   /** Exercise the versioned message-schema guard (QE-1423). */
   checkProtocol(): { valid: boolean; invalidType: boolean; wrongVersion: boolean } {
     const good = { v: PROTOCOL_VERSION, type: "command", command: { name: "next" } };

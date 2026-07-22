@@ -22,6 +22,10 @@ export interface PageState {
   /** 0-indexed current page. */
   currentPage: number;
   locked: boolean;
+  /** True when pagination is locked (presentation mode) and content has grown
+   *  past the locked boundaries, so the current page is confined/clipped and an
+   *  indicator should show (spec §3.4, QE-1442). */
+  overflow: boolean;
 }
 
 export interface PaginatorOptions {

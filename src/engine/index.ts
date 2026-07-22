@@ -17,5 +17,6 @@ export type {
   StateMessage,
   AnchorMessage,
   OpenExternalMessage,
+  ActivityMessage,
 } from "./messages.js";
 export type { Anchor, PageState, PaginatorOptions } from "./types.js";

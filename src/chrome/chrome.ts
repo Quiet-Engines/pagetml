@@ -8,7 +8,7 @@
 // persistence are the native M2 pieces, deferred until there's a build env.)
 
 import { createTransport } from "../engine/index.js";
-import type { PageState, PagerMessage } from "../engine/index.js";
+import type { Anchor, PageState, PagerMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
@@ -53,21 +53,61 @@ function setRemoteAllowed(name: string, on: boolean): void {
   }
 }
 
+// Last-read position, stored per file as a content anchor so it survives
+// repagination and restarts (spec §3.2, QE-1434). The Tauri layer owns this in
+// the real app; in dev it is localStorage.
+const POS_KEY = (name: string) => `pager.pos.${name}`;
+function loadPosition(name: string): Anchor | null {
+  try {
+    const raw = localStorage.getItem(POS_KEY(name));
+    const a = raw ? (JSON.parse(raw) as unknown) : null;
+    // Shape-check the stored anchor before trusting it.
+    return a && typeof a === "object" && Array.isArray((a as Anchor).path) ? (a as Anchor) : null;
+  } catch {
+    return null;
+  }
+}
+function savePosition(name: string, anchor: Anchor): void {
+  try {
+    localStorage.setItem(POS_KEY(name), JSON.stringify(anchor));
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
 type Command = Extract<PagerMessage, { type: "command" }>["command"];
 
 class Chrome {
   private readonly root: HTMLElement;
-  private state: PageState = { pageCount: 1, currentPage: 0, locked: false };
+  private state: PageState = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
   private transport?: ReturnType<typeof createTransport>;
   private unsub?: () => void;
   private keyHandler?: (e: KeyboardEvent) => void;
   private frame?: HTMLIFrameElement;
   private currentFixture?: string;
+  /** A saved position to restore once the freshly-opened document is ready. */
+  private pendingRestore?: Anchor;
   private wheelAccum = 0;
   private wheelLock = false;
-  // Status-bar elements, cached when reading mode is built (updated on every
-  // `state` message, so we don't re-query the DOM per page turn).
-  private els?: { counter: HTMLElement; prev: HTMLButtonElement; next: HTMLButtonElement };
+  // --- presentation mode (QE-1437..1444) ---
+  private presenting = false;
+  private blackout: "none" | "black" | "white" = "none";
+  private jumpBuffer = "";
+  private cursorTimer?: number;
+  private hudTimer?: number;
+  // Status-bar / overlay elements, cached when reading mode is built (updated on
+  // every `state` message, so we don't re-query the DOM per page turn).
+  private els?: {
+    counter: HTMLElement;
+    prev: HTMLButtonElement;
+    next: HTMLButtonElement;
+    chip: HTMLElement;
+    hud: HTMLElement;
+    blackout: HTMLElement;
+    jump: HTMLElement;
+    overflowFlag: HTMLElement;
+    reading: HTMLElement;
+  };
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -124,7 +164,8 @@ class Chrome {
     this.teardownReading(); // leak-safe regardless of caller
     addRecent(fixture);
     this.currentFixture = fixture;
-    this.state = { pageCount: 1, currentPage: 0, locked: false };
+    this.pendingRestore = loadPosition(fixture) ?? undefined;
+    this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
     // The content iframe is created in JS below (with its src set before it is
@@ -135,22 +176,38 @@ class Chrome {
           <button class="chevron left" data-testid="prev" aria-label="Previous page">‹</button>
           <button class="chevron right" data-testid="next" aria-label="Next page">›</button>
         </div>
+        <div class="blackout" data-testid="blackout" hidden></div>
+        <div class="hud" data-testid="hud" hidden></div>
+        <div class="jump" data-testid="jump" hidden></div>
+        <div class="overflow-flag" data-testid="overflow-flag" hidden>Content overflow — pagination locked</div>
         <div class="statusbar">
           <button class="back" data-testid="back">Pager<span class="dot">.</span></button>
           <span class="counter" data-testid="counter">– / –</span>
-          <span class="chip">Reading</span>
+          <span class="chip" data-testid="chip">Reading</span>
           <button class="toggle" data-testid="remote-toggle" aria-pressed="false">Remote off</button>
-          <span class="hint">← → Space to turn · Home / End · resizing repaginates</span>
+          <button class="toggle" data-testid="present">Present ▸</button>
+          <span class="hint">← → Space · F5 present · Home / End</span>
         </div>
       </div>`;
 
     const q = <T extends HTMLElement>(sel: string) => this.root.querySelector<T>(sel)!;
     const prev = q<HTMLButtonElement>("[data-testid=prev]");
     const next = q<HTMLButtonElement>("[data-testid=next]");
-    this.els = { counter: q("[data-testid=counter]"), prev, next };
+    this.els = {
+      counter: q("[data-testid=counter]"),
+      prev,
+      next,
+      chip: q("[data-testid=chip]"),
+      hud: q("[data-testid=hud]"),
+      blackout: q("[data-testid=blackout]"),
+      jump: q("[data-testid=jump]"),
+      overflowFlag: q("[data-testid=overflow-flag]"),
+      reading: q("[data-testid=reading]"),
+    };
     prev.addEventListener("click", () => this.prev());
     next.addEventListener("click", () => this.next());
     q("[data-testid=back]").addEventListener("click", () => this.showStart());
+    q("[data-testid=present]").addEventListener("click", () => this.enterPresentation());
 
     const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
     this.renderRemoteToggle(toggle, isRemoteAllowed(fixture));
@@ -216,12 +273,14 @@ class Chrome {
   }
 
   private teardownReading(): void {
+    this.cleanupPresentation(); // clear presentation timers/listeners (uses this.els)
     this.unsub?.();
     this.unsub = undefined;
     this.transport = undefined;
     this.els = undefined;
     this.frame = undefined;
     this.currentFixture = undefined;
+    this.pendingRestore = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
@@ -231,14 +290,24 @@ class Chrome {
     if (msg.type === "state") {
       this.state = msg.state;
       this.updateStatus();
+      // Once the document is ready, restore the saved position (once).
+      if (this.pendingRestore) {
+        const anchor = this.pendingRestore;
+        this.pendingRestore = undefined;
+        this.send({ name: "restoreAnchor", anchor });
+      }
+    } else if (msg.type === "anchor") {
+      // Persist the reader's position per file (spec §3.2, QE-1434).
+      if (this.currentFixture && msg.anchor) savePosition(this.currentFixture, msg.anchor);
     } else if (msg.type === "openExternal") {
       // External links never open inside Pager. In the real app the Tauri shell
       // hands this to the OS default browser; in the browser build we open a new
       // tab. `noopener` severs the link back to this window.
       window.open(msg.url, "_blank", "noopener,noreferrer");
+    } else if (msg.type === "activity") {
+      // Pointer moved inside the content frame — keep the cursor visible.
+      if (this.presenting) this.bumpCursor();
     }
-    // `anchor` messages carry the reader's position; persisting and restoring
-    // them (recent-file position restore) is part of the native M2 work.
   }
 
   private send(command: Command): void {
@@ -248,31 +317,22 @@ class Chrome {
   private prev(): void { this.send({ name: "prev" }); }
   private first(): void { this.send({ name: "first" }); }
   private last(): void { this.send({ name: "last" }); }
+  private goTo(page: number): void { this.send({ name: "goToPage", page }); }
 
   private updateStatus(): void {
     if (!this.els) return;
-    const { currentPage, pageCount } = this.state;
+    const { currentPage, pageCount, overflow } = this.state;
     this.els.counter.textContent = `${currentPage + 1} / ${pageCount}`;
     this.els.prev.disabled = currentPage <= 0;
     this.els.next.disabled = currentPage >= pageCount - 1;
+    this.els.overflowFlag.hidden = !overflow; // locked-mode overflow indicator
+    if (this.presenting) this.updateHud();
   }
 
   // --- input ----------------------------------------------------------------
 
   private attachInput(): void {
-    this.keyHandler = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowRight": case "ArrowDown": case "PageDown":
-          this.next(); e.preventDefault(); break;
-        case "ArrowLeft": case "ArrowUp": case "PageUp":
-          this.prev(); e.preventDefault(); break;
-        case " ":
-          (e.shiftKey ? this.prev() : this.next()); e.preventDefault(); break;
-        case "Home": this.first(); e.preventDefault(); break;
-        case "End": this.last(); e.preventDefault(); break;
-        case "Escape": this.showStart(); break;
-      }
-    };
+    this.keyHandler = (e: KeyboardEvent) => this.onKey(e);
     window.addEventListener("keydown", this.keyHandler);
 
     const stage = this.root.querySelector<HTMLElement>("[data-testid=stage]")!;
@@ -294,6 +354,174 @@ class Chrome {
       },
       { passive: false },
     );
+  }
+
+  private onKey(e: KeyboardEvent): void {
+    if (this.presenting) {
+      this.onPresentationKey(e);
+      return;
+    }
+    // Enter presentation: F5 or Cmd/Ctrl+Shift+F (spec §3.3).
+    if (e.key === "F5" || ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f")) {
+      e.preventDefault();
+      this.enterPresentation();
+      return;
+    }
+    switch (e.key) {
+      case "ArrowRight": case "ArrowDown": case "PageDown":
+        this.next(); e.preventDefault(); break;
+      case "ArrowLeft": case "ArrowUp": case "PageUp":
+        this.prev(); e.preventDefault(); break;
+      case " ":
+        (e.shiftKey ? this.prev() : this.next()); e.preventDefault(); break;
+      case "Home": this.first(); e.preventDefault(); break;
+      case "End": this.last(); e.preventDefault(); break;
+      case "Escape": this.showStart(); break;
+    }
+  }
+
+  // --- presentation mode (QE-1437..1444) ------------------------------------
+
+  private onPresentationKey(e: KeyboardEvent): void {
+    // While blacked/whited out, any key returns to the slide (spec §3.3).
+    if (this.blackout !== "none") {
+      e.preventDefault();
+      if (e.key.toLowerCase() === "b") this.setBlackout(this.blackout === "black" ? "none" : "black");
+      else if (e.key.toLowerCase() === "w") this.setBlackout(this.blackout === "white" ? "none" : "white");
+      else this.setBlackout("none");
+      return;
+    }
+    // Typing a page number then Enter jumps to that page (spec §3.3).
+    if (/^[0-9]$/.test(e.key)) {
+      this.jumpBuffer += e.key;
+      this.renderJump();
+      e.preventDefault();
+      return;
+    }
+    switch (e.key) {
+      case "Enter": this.commitJump(); e.preventDefault(); break;
+      case "b": case "B": this.setBlackout("black"); e.preventDefault(); break;
+      case "w": case "W": this.setBlackout("white"); e.preventDefault(); break;
+      case "Escape":
+        if (this.jumpBuffer) this.clearJump();
+        else this.exitPresentation();
+        e.preventDefault();
+        break;
+      case "ArrowRight": case "ArrowDown": case "PageDown":
+        this.clearJump(); this.next(); e.preventDefault(); break;
+      case "ArrowLeft": case "ArrowUp": case "PageUp":
+        this.clearJump(); this.prev(); e.preventDefault(); break;
+      case " ":
+        this.clearJump(); (e.shiftKey ? this.prev() : this.next()); e.preventDefault(); break;
+      case "Home": this.first(); e.preventDefault(); break;
+      case "End": this.last(); e.preventDefault(); break;
+    }
+  }
+
+  private enterPresentation(): void {
+    if (this.presenting || !this.els) return;
+    this.presenting = true;
+    this.els.reading.classList.add("presenting");
+    this.els.chip.textContent = "Presenting";
+    this.send({ name: "lock" }); // engine repaginates once at this size, then freezes
+    this.showHud();
+    this.startCursorAutoHide();
+    // Fullscreen is best-effort — presentation works logically even if denied.
+    this.els.reading.requestFullscreen?.().catch(() => {});
+    document.addEventListener("fullscreenchange", this.onFullscreenChange);
+  }
+
+  private exitPresentation(): void {
+    if (!this.presenting) return;
+    const els = this.els;
+    this.cleanupPresentation();
+    if (els) {
+      els.reading.classList.remove("presenting", "cursor-hidden");
+      els.chip.textContent = "Reading";
+      els.hud.hidden = true;
+      els.blackout.hidden = true;
+      els.jump.hidden = true;
+    }
+    // Engine unlocks and reflows back to the equivalent content position (§3.3).
+    this.send({ name: "unlock" });
+  }
+
+  /** Reset presentation state/timers/listeners WITHOUT messaging the frame — for
+   *  teardown, where the frame is going away anyway. */
+  private cleanupPresentation(): void {
+    this.presenting = false;
+    this.blackout = "none";
+    this.jumpBuffer = "";
+    if (this.cursorTimer) window.clearTimeout(this.cursorTimer);
+    if (this.hudTimer) window.clearTimeout(this.hudTimer);
+    this.cursorTimer = this.hudTimer = undefined;
+    document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+    window.removeEventListener("mousemove", this.onPresentationMouseMove);
+    if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+  }
+
+  // Leaving fullscreen (e.g. the browser's own Esc) exits presentation too.
+  private onFullscreenChange = (): void => {
+    if (this.presenting && !document.fullscreenElement) this.exitPresentation();
+  };
+
+  private setBlackout(mode: "none" | "black" | "white"): void {
+    this.blackout = mode;
+    const b = this.els?.blackout;
+    if (!b) return;
+    b.hidden = mode === "none";
+    b.className = "blackout" + (mode === "none" ? "" : ` ${mode}`);
+  }
+
+  private renderJump(): void {
+    const j = this.els?.jump;
+    if (!j) return;
+    j.hidden = this.jumpBuffer === "";
+    j.textContent = this.jumpBuffer;
+  }
+  private clearJump(): void {
+    if (this.jumpBuffer) {
+      this.jumpBuffer = "";
+      this.renderJump();
+    }
+  }
+  private commitJump(): void {
+    const n = parseInt(this.jumpBuffer, 10);
+    this.clearJump();
+    if (!Number.isNaN(n)) {
+      const page = Math.min(Math.max(n, 1), this.state.pageCount) - 1;
+      this.goTo(page);
+    }
+  }
+
+  private showHud(): void {
+    this.updateHud();
+    const h = this.els?.hud;
+    if (!h) return;
+    h.hidden = false;
+    if (this.hudTimer) window.clearTimeout(this.hudTimer);
+    this.hudTimer = window.setTimeout(() => {
+      if (this.els) this.els.hud.hidden = true;
+    }, 2200);
+  }
+  private updateHud(): void {
+    if (!this.els) return;
+    this.els.hud.textContent = `${this.state.currentPage + 1} / ${this.state.pageCount} — pagination locked`;
+  }
+
+  private startCursorAutoHide(): void {
+    // Listen on the chrome window (moves over the content frame arrive as
+    // `activity` messages instead — see onMessage).
+    window.addEventListener("mousemove", this.onPresentationMouseMove);
+    this.bumpCursor();
+  }
+  private onPresentationMouseMove = (): void => this.bumpCursor();
+  private bumpCursor(): void {
+    const r = this.els?.reading;
+    if (!r) return;
+    r.classList.remove("cursor-hidden");
+    if (this.cursorTimer) window.clearTimeout(this.cursorTimer);
+    this.cursorTimer = window.setTimeout(() => r.classList.add("cursor-hidden"), 2000);
   }
 }
 
