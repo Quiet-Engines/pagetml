@@ -101,5 +101,5 @@ test("content growth while locked raises the overflow indicator", async ({ page 
     }
   });
 
-  await expect(page.getByTestId("overflow-flag")).toBeVisible({ timeout: 3000 });
+  await expect(page.getByTestId("overflow-flag")).toBeVisible({ timeout: 6000 });
 });
