@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tall media fixture</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; }
+      figure { margin: 0 0 1em; }
+      pre { background: #0f1115; color: #d8dee9; padding: 12px; border-radius: 6px; font: 13px/1.4 ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Oversized elements</h1>
+    <p>An inline SVG declared far larger than a page. Normalization must scale it to fit within a single page rather than letting it clip or overflow the counted pages.</p>
+    <figure>
+      <svg width="2400" height="3200" viewBox="0 0 2400 3200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="oversized test image">
+        <rect width="2400" height="3200" fill="#c98a3b" />
+        <circle cx="1200" cy="1600" r="900" fill="#173042" />
+        <text x="1200" y="1650" font-size="240" fill="#fff" text-anchor="middle">BIG</text>
+      </svg>
+    </figure>
+    <p>A long preformatted code block. Because a single very long line cannot be broken by default, the engine's base style allows it to wrap so it fragments across pages instead of clipping.</p>
+    <pre>function paginate(flow, viewportWidth, viewportHeight, gap) {
+  // This intentionally long comment line simulates the kind of unbreakable preformatted content that would otherwise overflow a fixed-width column and be clipped at the page boundary without wrapping enabled by the engine base stylesheet.
+  const stride = viewportWidth + gap;
+  const pageCount = Math.max(1, Math.round((flow.scrollWidth + gap) / stride));
+  return { stride, pageCount };
+}</pre>
+    <p>Trailing text after the oversized elements so pagination continues normally and the last page boundary is exercised.</p>
+    <p>Filler paragraph one to extend the document across multiple pages for the resize and anchor tests to have room to operate against real content.</p>
+    <p>Filler paragraph two, continuing past the oversized figure so reachability is meaningfully tested beyond the media itself.</p>
+  </body>
+</html>

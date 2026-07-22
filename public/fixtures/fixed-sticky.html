@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixed and sticky fixture</title>
+    <style>
+      body { font: 17px/1.55 system-ui, sans-serif; margin: 0; }
+      .topbar {
+        position: fixed; top: 0; left: 0; right: 0; height: 48px;
+        background: #173042; color: #fff; display: flex; align-items: center;
+        padding: 0 16px;
+      }
+      .sticky-note {
+        position: sticky; top: 48px; background: #f6d69a; padding: 8px 16px;
+      }
+      main { padding: 16px; }
+      p { margin: 0 0 0.9em; }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">Fixed top bar (should be normalized to absolute)</div>
+    <div class="sticky-note">Sticky note (should be normalized to absolute)</div>
+    <main>
+      <h1>Fixed and sticky positioning</h1>
+      <p>A fixed top bar and a sticky note, both of which behave inconsistently inside CSS columns across engines. The engine normalizes them to absolute so they stay on the page they belong to instead of floating over every page or breaking the column box.</p>
+      <p>This paragraph and those that follow provide ordinary flowed content so the document paginates across several pages, letting the invariant checks confirm no fragment straddles a boundary after the positioning normalization.</p>
+      <p>Additional content to extend the document. Because the fixed bar no longer participates in fixed positioning, it should occupy a normal slot on the first page and not repeat.</p>
+      <p>More content still, ensuring at least three or four pages at an 800 by 600 viewport so page turns and anchoring have room to operate.</p>
+      <p>Because the fixed bar and sticky note are pulled out of the normal flow when normalized to absolute, the flowed content is what drives pagination — so the document needs enough real prose to span several pages on its own.</p>
+      <p>Consider how a presenter uses this: a fixed toolbar authored into the document must not hover over every slide, and a sticky heading must not smear across page turns. Normalizing both to absolute pins them to the page they were authored on.</p>
+      <p>The engine makes no attempt to reproduce sticky behavior across pages; sticky is a scroll-relative concept and there is no scrolling in a paginated view. Pinning to the nearest page is the honest, predictable translation.</p>
+      <p>Fixed backgrounds and overlays are the other common case. A full-viewport fixed overlay would, unnormalized, either cover every page or collapse the column box; as absolute it occupies one page's worth of space and no more.</p>
+      <p>This paragraph and the next few simply extend the document so that, at an 800 by 600 viewport, it paginates into several pages, giving the resize round-trip and anchor-containment checks genuine multi-page content to operate against.</p>
+      <p>Continuing the prose: the invariant suite asserts that no line fragment straddles a page boundary after positioning normalization, and that every leaf's fragments land on a counted page, at each of the tested window sizes.</p>
+      <p>One more block of ordinary text, ensuring the page count comfortably exceeds one even at wide window sizes where more content fits per page under auto-fit.</p>
+      <p>A final paragraph so the last page has partial content and the end boundary is exercised by the reachability invariant.</p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "pagetml",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Pager — a paginated HTML reader for Mac and Windows. Milestone 1: the shared pagination engine.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium",
+    "test:webkit": "playwright test --project=webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

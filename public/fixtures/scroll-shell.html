@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Scroll-container shell fixture</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      /* A single top-level full-height scroll container — the classic SPA shell
+         that holds all content in one non-flowing viewport-height box. */
+      #app {
+        height: 100vh;
+        overflow: auto;
+        font: 17px/1.55 system-ui, sans-serif;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      p { margin: 0 0 0.9em; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Single-page-app shell</h1>
+      <p>All of this content lives inside one element with <code>height: 100vh</code> and <code>overflow: auto</code>. Left alone, it produces exactly one page because the content never flows past the viewport-height box — everything beyond the first screen is hidden behind an internal scrollbar.</p>
+      <p>The engine detects this pattern and unwraps it: height becomes auto and overflow becomes visible, so the content flows into columns and paginates normally. This paragraph and the following ones exist to prove that the unwrapped content spans several real pages.</p>
+      <p>Content block three, continuing well past the first viewport height so that, if unwrapping failed, the reachability invariant would catch the lost content sitting beyond the single counted page.</p>
+      <p>Content block four, more text to guarantee multiple pages after unwrapping at common window sizes.</p>
+      <p>Content block five, still going, so the resize round-trip has genuine content to keep an anchor against.</p>
+      <p>Content block six, the last one, leaving the final page partially filled to exercise the end boundary.</p>
+    </div>
+  </body>
+</html>

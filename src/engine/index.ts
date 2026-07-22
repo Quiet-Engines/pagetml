@@ -1,0 +1,20 @@
+// Public surface of the Pager pagination engine (Milestone 1).
+export { Paginator, createPaginator } from "./paginator.js";
+export { measureInFlow, measureRectInFlow, pageAtX, pageCountForExtent } from "./measure.js";
+export type { FlowRect, FlowOrigin } from "./measure.js";
+export { isReplacedElement } from "./dom.js";
+export { captureAnchor, pageForAnchor, pathToElement, elementAtPath } from "./anchor.js";
+export {
+  PROTOCOL_VERSION,
+  isPagerMessage,
+  createTransport,
+} from "./messages.js";
+export type {
+  PagerMessage,
+  EngineToChrome,
+  ChromeToEngine,
+  CommandMessage,
+  StateMessage,
+  AnchorMessage,
+} from "./messages.js";
+export type { Anchor, PageState, PaginatorOptions } from "./types.js";

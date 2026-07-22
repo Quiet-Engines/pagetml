@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Break hints fixture</title>
+    <style>
+      body { font: 17px/1.55 system-ui, sans-serif; color: #202020; }
+      section { padding: 0; }
+      .page-break { break-before: page; }
+      .keep-together { break-inside: avoid; background: #f3efe6; padding: 12px; }
+      h2 { margin-top: 0; }
+      p { margin: 0 0 0.9em; }
+    </style>
+  </head>
+  <body>
+    <section id="sec1">
+      <h2>Section one</h2>
+      <p>This first section holds enough text to occupy the top of the first page. Author break hints should flow through the column fragmenter natively, so the next section can be forced to begin on a fresh page.</p>
+      <p>More filler for section one so it is not trivially short. The engine does not need to special-case these breaks; it only needs to avoid interfering with them.</p>
+    </section>
+    <section id="sec2" class="page-break">
+      <h2>Section two (break-before: page)</h2>
+      <p>This section carries <code>break-before: page</code> and must therefore begin at the start of a new page/column, not immediately after section one. The test asserts that its left edge aligns to a page boundary.</p>
+      <p>Additional text so the section spans a realistic amount of space and the following keep-together block has room to be tested.</p>
+      <div class="keep-together" id="keep">
+        <strong>Keep-inside block.</strong> This block sets <code>break-inside: avoid</code>. It should not be split across a page boundary; all of its own line fragments must land on a single page.
+      </div>
+    </section>
+    <section id="sec3" class="page-break">
+      <h2>Section three (break-before: page)</h2>
+      <p>A third forced-break section, ensuring multiple page breaks are honored in sequence and that page counting stays consistent when explicit breaks add otherwise-empty space to columns.</p>
+      <p>Trailing paragraph to give the final page some content beyond the heading, exercising the end boundary.</p>
+    </section>
+  </body>
+</html>
