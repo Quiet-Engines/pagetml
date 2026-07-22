@@ -1,0 +1,214 @@
+// The trusted app chrome (spec §4.2, §5, QE-1432/1433/1436). It renders the two
+// v1 states it can verify in a plain browser — start screen and reading mode —
+// and drives the sandboxed content frame ONLY through the versioned postMessage
+// schema. It never touches the iframe's document: navigation goes out as
+// `command` messages, and page state comes back as `state`/`anchor` messages.
+//
+// (Presentation mode is M3; the Tauri shell, real file open, pager:// and
+// persistence are the native M2 pieces, deferred until there's a build env.)
+
+import { createTransport, PROTOCOL_VERSION } from "../engine/index.js";
+import type { PageState, PagerMessage } from "../engine/index.js";
+
+// In the real app these come from the OS (recent files + file open). In dev the
+// fixture corpus stands in for "documents on disk".
+const SAMPLE_DOCS = [
+  "prose",
+  "breaks",
+  "tall-media",
+  "fixed-sticky",
+  "scroll-shell",
+  "scroll-shell-nested",
+  "sticky-midflow",
+  "tables-code",
+  "gdocs-export",
+];
+const RECENTS_KEY = "pager.recents";
+
+function getRecents(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+function addRecent(name: string): void {
+  const next = [name, ...getRecents().filter((n) => n !== name)].slice(0, 10);
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
+type Command = Extract<PagerMessage, { type: "command" }>["command"];
+
+class Chrome {
+  private readonly root: HTMLElement;
+  private state: PageState = { pageCount: 1, currentPage: 0, locked: false };
+  private transport?: ReturnType<typeof createTransport>;
+  private unsub?: () => void;
+  private keyHandler?: (e: KeyboardEvent) => void;
+  private wheelAccum = 0;
+  private wheelLock = false;
+
+  constructor(root: HTMLElement) {
+    this.root = root;
+  }
+
+  // --- start screen ---------------------------------------------------------
+
+  showStart(): void {
+    this.teardownReading();
+    const recents = getRecents();
+    const docItem = (name: string, meta: string) =>
+      `<button class="recent" data-doc="${name}">
+         <span class="glyph">▤</span>
+         <span class="name">${name}.html</span>
+         <span class="meta">${meta}</span>
+       </button>`;
+
+    const seen = new Set<string>();
+    const rows: string[] = [];
+    for (const n of recents) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      rows.push(docItem(n, "recent"));
+    }
+    for (const n of SAMPLE_DOCS) {
+      if (seen.has(n)) continue;
+      rows.push(docItem(n, "sample"));
+    }
+
+    this.root.innerHTML = `
+      <div class="start" data-testid="start">
+        <div>
+          <div class="wordmark">Pager<span class="dot">.</span></div>
+          <div class="tagline">A paginated reader for local HTML.</div>
+        </div>
+        <div class="dropzone">Drop an <strong>.html</strong> file here, or pick one below.</div>
+        <div class="recents">
+          <h2>Documents</h2>
+          <div class="recent-list">${rows.join("")}</div>
+        </div>
+      </div>`;
+
+    for (const btn of this.root.querySelectorAll<HTMLButtonElement>("[data-doc]")) {
+      btn.addEventListener("click", () => this.open(btn.dataset.doc!));
+    }
+  }
+
+  // --- reading mode ---------------------------------------------------------
+
+  open(fixture: string): void {
+    addRecent(fixture);
+    this.state = { pageCount: 1, currentPage: 0, locked: false };
+
+    this.root.innerHTML = `
+      <div class="reading" data-testid="reading">
+        <div class="stage" data-testid="stage">
+          <button class="chevron left" data-testid="prev" aria-label="Previous page">‹</button>
+          <iframe class="paper" data-testid="paper"
+                  sandbox="allow-scripts allow-same-origin"
+                  src="/app/content.html?fixture=${encodeURIComponent(fixture)}"></iframe>
+          <button class="chevron right" data-testid="next" aria-label="Next page">›</button>
+        </div>
+        <div class="statusbar">
+          <button class="back" data-testid="back">Pager<span class="dot">.</span></button>
+          <span class="counter" data-testid="counter">– / –</span>
+          <span class="chip">Reading</span>
+          <span class="hint">← → Space to turn · Home / End · resizing repaginates</span>
+        </div>
+      </div>`;
+
+    const iframe = this.root.querySelector<HTMLIFrameElement>("[data-testid=paper]")!;
+    this.root.querySelector("[data-testid=prev]")!.addEventListener("click", () => this.prev());
+    this.root.querySelector("[data-testid=next]")!.addEventListener("click", () => this.next());
+    this.root.querySelector("[data-testid=back]")!.addEventListener("click", () => this.showStart());
+
+    iframe.addEventListener("load", () => {
+      const win = iframe.contentWindow;
+      if (!win) return;
+      // Post to the frame; listen on our own window. This is the ONLY channel
+      // to the content — the chrome never reads iframe.contentDocument.
+      this.transport = createTransport(win, window);
+      this.unsub = this.transport.onMessage((msg) => this.onMessage(msg));
+    });
+
+    this.attachInput();
+  }
+
+  private teardownReading(): void {
+    this.unsub?.();
+    this.unsub = undefined;
+    this.transport = undefined;
+    if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
+    this.keyHandler = undefined;
+  }
+
+  private onMessage(msg: PagerMessage): void {
+    if (msg.type === "state") {
+      this.state = msg.state;
+      this.updateStatus();
+    }
+    // `anchor` messages carry the reader's position; persisting and restoring
+    // them (recent-file position restore) is part of the native M2 work.
+  }
+
+  private send(command: Command): void {
+    this.transport?.send({ v: PROTOCOL_VERSION, type: "command", command });
+  }
+  private next(): void { this.send({ name: "next" }); }
+  private prev(): void { this.send({ name: "prev" }); }
+  private first(): void { this.send({ name: "first" }); }
+  private last(): void { this.send({ name: "last" }); }
+
+  private updateStatus(): void {
+    const counter = this.root.querySelector<HTMLElement>("[data-testid=counter]");
+    if (counter) counter.textContent = `${this.state.currentPage + 1} / ${this.state.pageCount}`;
+    const prev = this.root.querySelector<HTMLButtonElement>("[data-testid=prev]");
+    const next = this.root.querySelector<HTMLButtonElement>("[data-testid=next]");
+    if (prev) prev.disabled = this.state.currentPage <= 0;
+    if (next) next.disabled = this.state.currentPage >= this.state.pageCount - 1;
+  }
+
+  // --- input ----------------------------------------------------------------
+
+  private attachInput(): void {
+    this.keyHandler = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case "ArrowRight": case "ArrowDown": case "PageDown":
+          this.next(); e.preventDefault(); break;
+        case "ArrowLeft": case "ArrowUp": case "PageUp":
+          this.prev(); e.preventDefault(); break;
+        case " ":
+          (e.shiftKey ? this.prev() : this.next()); e.preventDefault(); break;
+        case "Home": this.first(); e.preventDefault(); break;
+        case "End": this.last(); e.preventDefault(); break;
+        case "Escape": this.showStart(); break;
+      }
+    };
+    window.addEventListener("keydown", this.keyHandler);
+
+    const stage = this.root.querySelector<HTMLElement>("[data-testid=stage]")!;
+    stage.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        this.wheelAccum += e.deltaY;
+        if (this.wheelLock) return;
+        if (Math.abs(this.wheelAccum) < 24) return;
+        (this.wheelAccum > 0 ? this.next() : this.prev());
+        this.wheelAccum = 0;
+        // Coalesce a burst of wheel events into one discrete page turn.
+        this.wheelLock = true;
+        window.setTimeout(() => (this.wheelLock = false), 260);
+      },
+      { passive: false },
+    );
+  }
+}
+
+const app = document.getElementById("app")!;
+new Chrome(app).showStart();

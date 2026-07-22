@@ -53,18 +53,23 @@ export function isPagerMessage(data: unknown): data is PagerMessage {
   );
 }
 
-/** A thin postMessage transport. `target` is the other side's window. */
-export function createTransport(target: Window, origin = "*") {
+/**
+ * A thin postMessage transport. `remote` is the other side's window (where
+ * outgoing messages are posted); `local` is this side's window (where incoming
+ * `message` events actually fire — they arrive on the receiver, not the
+ * sender). Defaults `local` to the global window.
+ */
+export function createTransport(remote: Window, local: Window = globalThis as unknown as Window, origin = "*") {
   return {
     send(msg: PagerMessage) {
-      target.postMessage(msg, origin);
+      remote.postMessage(msg, origin);
     },
     onMessage(handler: (msg: PagerMessage) => void): () => void {
       const listener = (ev: MessageEvent) => {
         if (isPagerMessage(ev.data)) handler(ev.data);
       };
-      target.addEventListener("message", listener as EventListener);
-      return () => target.removeEventListener("message", listener as EventListener);
+      local.addEventListener("message", listener as EventListener);
+      return () => local.removeEventListener("message", listener as EventListener);
     },
   };
 }
