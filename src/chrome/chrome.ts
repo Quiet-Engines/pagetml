@@ -8,7 +8,7 @@
 // persistence are the native M2 pieces, deferred until there's a build env.)
 
 import { createTransport } from "../engine/index.js";
-import type { PageState, PagerMessage } from "../engine/index.js";
+import type { Anchor, PageState, PagerMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
@@ -53,6 +53,28 @@ function setRemoteAllowed(name: string, on: boolean): void {
   }
 }
 
+// Last-read position, stored per file as a content anchor so it survives
+// repagination and restarts (spec §3.2, QE-1434). The Tauri layer owns this in
+// the real app; in dev it is localStorage.
+const POS_KEY = (name: string) => `pager.pos.${name}`;
+function loadPosition(name: string): Anchor | null {
+  try {
+    const raw = localStorage.getItem(POS_KEY(name));
+    const a = raw ? (JSON.parse(raw) as unknown) : null;
+    // Shape-check the stored anchor before trusting it.
+    return a && typeof a === "object" && Array.isArray((a as Anchor).path) ? (a as Anchor) : null;
+  } catch {
+    return null;
+  }
+}
+function savePosition(name: string, anchor: Anchor): void {
+  try {
+    localStorage.setItem(POS_KEY(name), JSON.stringify(anchor));
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
 type Command = Extract<PagerMessage, { type: "command" }>["command"];
 
 class Chrome {
@@ -63,6 +85,8 @@ class Chrome {
   private keyHandler?: (e: KeyboardEvent) => void;
   private frame?: HTMLIFrameElement;
   private currentFixture?: string;
+  /** A saved position to restore once the freshly-opened document is ready. */
+  private pendingRestore?: Anchor;
   private wheelAccum = 0;
   private wheelLock = false;
   // --- presentation mode (QE-1437..1444) ---
@@ -140,6 +164,7 @@ class Chrome {
     this.teardownReading(); // leak-safe regardless of caller
     addRecent(fixture);
     this.currentFixture = fixture;
+    this.pendingRestore = loadPosition(fixture) ?? undefined;
     this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
@@ -255,6 +280,7 @@ class Chrome {
     this.els = undefined;
     this.frame = undefined;
     this.currentFixture = undefined;
+    this.pendingRestore = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
@@ -264,6 +290,15 @@ class Chrome {
     if (msg.type === "state") {
       this.state = msg.state;
       this.updateStatus();
+      // Once the document is ready, restore the saved position (once).
+      if (this.pendingRestore) {
+        const anchor = this.pendingRestore;
+        this.pendingRestore = undefined;
+        this.send({ name: "restoreAnchor", anchor });
+      }
+    } else if (msg.type === "anchor") {
+      // Persist the reader's position per file (spec §3.2, QE-1434).
+      if (this.currentFixture && msg.anchor) savePosition(this.currentFixture, msg.anchor);
     } else if (msg.type === "openExternal") {
       // External links never open inside Pager. In the real app the Tauri shell
       // hands this to the OS default browser; in the browser build we open a new
@@ -273,8 +308,6 @@ class Chrome {
       // Pointer moved inside the content frame — keep the cursor visible.
       if (this.presenting) this.bumpCursor();
     }
-    // `anchor` messages carry the reader's position; persisting and restoring
-    // them (recent-file position restore) is part of the native M2 work.
   }
 
   private send(command: Command): void {
