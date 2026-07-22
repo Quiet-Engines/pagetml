@@ -9,11 +9,18 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:chromium": "playwright test --project=chromium",
-    "test:webkit": "playwright test --project=webkit"
+    "test:webkit": "playwright test --project=webkit",
+    "build:app": "vite build",
+    "build:runtime": "vite build --config vite.runtime.config.ts",
+    "tauri": "tauri"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
+    "@tauri-apps/cli": "^2",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
   }
 }

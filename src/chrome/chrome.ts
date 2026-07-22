@@ -10,6 +10,7 @@
 import { createTransport } from "../engine/index.js";
 import type { Anchor, PageState, PagerMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
+import { initNativeShell, isNative, nativeOpenDialog, nativeSetRemote } from "./native.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
 // fixture corpus stands in for "documents on disk".
@@ -89,6 +90,9 @@ class Chrome {
    *  frame on every load, e.g. after a remote-toggle reload). Undefined for
    *  fixtures, which the frame loads itself via `?fixture=`. */
   private currentHtml?: string;
+  /** For a document served natively over pager://, the URL the frame loads
+   *  directly (the runtime is injected server-side). Undefined otherwise. */
+  private currentPagerUrl?: string;
   /** A saved position to restore once the freshly-opened document is ready. */
   private pendingRestore?: Anchor;
   private wheelAccum = 0;
@@ -115,6 +119,14 @@ class Chrome {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    // In the Tauri shell, load documents the OS opens (dialog / file
+    // association / CLI). Inert in the browser build.
+    initNativeShell((name, url) => this.openNative(name, url));
+  }
+
+  /** Open a document served natively over pager:// (Tauri shell). */
+  private openNative(name: string, url: string): void {
+    this.startReading(name, undefined, url);
   }
 
   // --- start screen ---------------------------------------------------------
@@ -153,7 +165,8 @@ class Chrome {
     // and the CLI argument are native (Tauri) — deferred.
     const dropzone = this.root.querySelector<HTMLElement>("[data-testid=dropzone]")!;
     const input = this.root.querySelector<HTMLInputElement>("[data-testid=file-input]")!;
-    dropzone.addEventListener("click", () => input.click());
+    // In the Tauri shell, use the native file dialog; in the browser, the input.
+    dropzone.addEventListener("click", () => (isNative() ? nativeOpenDialog() : input.click()));
     input.addEventListener("change", () => {
       const file = input.files?.[0];
       if (file) void this.openFile(file);
@@ -207,10 +220,11 @@ class Chrome {
     this.startReading(name, html);
   }
 
-  private startReading(name: string, html: string | undefined): void {
+  private startReading(name: string, html: string | undefined, pagerUrl?: string): void {
     this.teardownReading(); // leak-safe regardless of caller
     this.currentFixture = name;
     this.currentHtml = html;
+    this.currentPagerUrl = pagerUrl;
     this.pendingRestore = loadPosition(name) ?? undefined;
     this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
@@ -271,6 +285,9 @@ class Chrome {
    *  sends — see vite.config.ts / QE-1431). Fixtures load via `?fixture=`;
    *  opened files load a bare frame and receive their HTML via `loadDocument`. */
   private contentUrl(): string {
+    // A natively-served document loads its pager:// URL directly (runtime is
+    // injected by the Rust handler; remote CSP is set there via set_remote).
+    if (this.currentPagerUrl) return this.currentPagerUrl;
     const params = new URLSearchParams();
     if (this.currentHtml === undefined && this.currentFixture) params.set("fixture", this.currentFixture);
     if (this.currentFixture && isRemoteAllowed(this.currentFixture)) params.set("remote", "1");
@@ -323,6 +340,8 @@ class Chrome {
     if (!fixture || !this.frame) return;
     setRemoteAllowed(fixture, !isRemoteAllowed(fixture));
     this.renderRemoteToggle(btn, isRemoteAllowed(fixture));
+    // Native docs: the CSP is a pager:// response header, so tell the shell.
+    if (this.currentPagerUrl) nativeSetRemote(isRemoteAllowed(fixture));
 
     // Reload the same iframe under the new CSP; drop the old transport first.
     // The load handler re-wires and (for opened files) re-sends the document.
@@ -341,6 +360,7 @@ class Chrome {
     this.frame = undefined;
     this.currentFixture = undefined;
     this.currentHtml = undefined;
+    this.currentPagerUrl = undefined;
     this.pendingRestore = undefined;
     this.wheelAccum = 0;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);

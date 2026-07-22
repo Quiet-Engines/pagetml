@@ -10,14 +10,9 @@ test("opening a picked HTML file paginates it in reading mode", async ({ page })
   await page.setViewportSize({ width: 640, height: 820 });
   await openApp(page);
 
-  const html = `<!doctype html><html><head><style>body{font:16px/1.5 system-ui}</style></head>
-    <body><h1>Dropped report</h1>${"<p>A paragraph from the opened file, long enough that the document spans several pages once paginated.</p>".repeat(40)}</body></html>`;
-
-  await page.locator("[data-testid=file-input]").setInputFiles({
-    name: "my-report.html",
-    mimeType: "text/html",
-    buffer: Buffer.from(html),
-  });
+  // A real .html file on disk (the picker/drop path reads the File's text and
+  // hands it to the content frame via loadDocument).
+  await page.locator("[data-testid=file-input]").setInputFiles("public/fixtures/prose.html");
 
   await expect(page.getByTestId("reading")).toBeVisible();
   await expect(page.getByTestId("counter")).toHaveText(/^1 \/ \d+$/);
