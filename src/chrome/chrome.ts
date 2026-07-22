@@ -84,19 +84,16 @@ class Chrome {
   }
 
   private docButton(name: string, meta: string): HTMLButtonElement {
+    const span = (cls: string, text: string) => {
+      const s = document.createElement("span");
+      s.className = cls;
+      s.textContent = text; // textContent, never innerHTML — names are untrusted
+      return s;
+    };
     const btn = document.createElement("button");
     btn.className = "recent";
     btn.dataset.doc = name;
-    const glyph = document.createElement("span");
-    glyph.className = "glyph";
-    glyph.textContent = "▤";
-    const label = document.createElement("span");
-    label.className = "name";
-    label.textContent = `${name}.html`;
-    const metaEl = document.createElement("span");
-    metaEl.className = "meta";
-    metaEl.textContent = meta;
-    btn.append(glyph, label, metaEl);
+    btn.append(span("glyph", "▤"), span("name", `${name}.html`), span("meta", meta));
     btn.addEventListener("click", () => this.open(name));
     return btn;
   }
@@ -108,13 +105,13 @@ class Chrome {
     addRecent(fixture);
     this.state = { pageCount: 1, currentPage: 0, locked: false };
 
+    // Static shell only — no interpolation of untrusted values into innerHTML.
+    // The document goes in via the iframe's `src` property below.
     this.root.innerHTML = `
       <div class="reading" data-testid="reading">
         <div class="stage" data-testid="stage">
           <button class="chevron left" data-testid="prev" aria-label="Previous page">‹</button>
-          <iframe class="paper" data-testid="paper"
-                  sandbox="allow-scripts allow-same-origin"
-                  src="/app/content.html?fixture=${encodeURIComponent(fixture)}"></iframe>
+          <iframe class="paper" data-testid="paper" sandbox="allow-scripts allow-same-origin"></iframe>
           <button class="chevron right" data-testid="next" aria-label="Next page">›</button>
         </div>
         <div class="statusbar">
@@ -147,6 +144,10 @@ class Chrome {
       this.transport = createTransport(win, window);
       this.unsub = this.transport.onMessage((msg) => this.onMessage(msg));
     });
+
+    // Setting `src` as a property (not via interpolated HTML) starts the load
+    // now that the listener is attached; the value is never HTML-parsed.
+    iframe.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}`;
 
     this.attachInput();
   }

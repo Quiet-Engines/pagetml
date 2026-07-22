@@ -17,3 +17,23 @@ export async function loadFixture(page: Page, fixture: string, w = 800, h = 600)
   await page.goto(`/harness/index.html?fixture=${fixture}&w=${w}&h=${h}`);
   await page.waitForFunction(() => window.__pagerReady === true);
 }
+
+// --- app chrome helpers (tests/chrome.spec.ts) ---
+
+// The chrome's recent-files localStorage key (mirrors RECENTS_KEY in chrome.ts,
+// which is an entry module with side effects and so can't be imported here).
+export const RECENTS_KEY = "pager.recents";
+
+/** Seed the recent-files list before the app boots. */
+export async function seedRecents(page: Page, names: unknown): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => localStorage.setItem(key as string, value as string),
+    [RECENTS_KEY, JSON.stringify(names)] as const,
+  );
+}
+
+/** Open the app chrome and wait for the start screen. */
+export async function openApp(page: Page): Promise<void> {
+  await page.goto("/app/index.html");
+  await page.getByTestId("start").waitFor();
+}

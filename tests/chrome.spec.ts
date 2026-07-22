@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openApp, seedRecents } from "./helpers.js";
 
 // End-to-end tests for the app chrome (QE-1432/1433/1430). These drive the real
 // UI — start screen, reading-mode navigation — and assert on the page counter,
@@ -7,8 +8,7 @@ import { test, expect } from "@playwright/test";
 // contract (QE-1423) and the engine-in-frame architecture end to end.
 
 test("start screen lists documents and opens one into reading mode", async ({ page }) => {
-  await page.goto("/app/index.html");
-  await expect(page.getByTestId("start")).toBeVisible();
+  await openApp(page);
   await expect(page.locator("[data-doc=prose]")).toBeVisible();
 
   await page.locator("[data-doc=prose]").click();
@@ -21,7 +21,7 @@ test("start screen lists documents and opens one into reading mode", async ({ pa
 });
 
 test("navigation (buttons + keyboard) turns pages via the message channel", async ({ page }) => {
-  await page.goto("/app/index.html");
+  await openApp(page);
   await page.locator("[data-doc=prose]").click();
   const counter = page.getByTestId("counter");
   await expect(counter).toHaveText(/^1 \//);
@@ -47,8 +47,8 @@ test("navigation (buttons + keyboard) turns pages via the message channel", asyn
 });
 
 test("resizing the window repaginates and keeps a valid position", async ({ page }) => {
-  await page.goto("/app/index.html");
   await page.setViewportSize({ width: 1280, height: 720 });
+  await openApp(page);
   await page.locator("[data-doc=gdocs-export]").click();
   const counter = page.getByTestId("counter");
   await expect(counter).toHaveText(/^1 \/ \d+$/);
@@ -66,7 +66,7 @@ test("resizing the window repaginates and keeps a valid position", async ({ page
 });
 
 test("back returns to the start screen", async ({ page }) => {
-  await page.goto("/app/index.html");
+  await openApp(page);
   await page.locator("[data-doc=prose]").click();
   await expect(page.getByTestId("reading")).toBeVisible();
   await page.getByTestId("back").click();
@@ -75,14 +75,8 @@ test("back returns to the start screen", async ({ page }) => {
 
 test("document names render as text, not HTML (no injection into the chrome)", async ({ page }) => {
   // A recent whose name contains markup must not execute or create elements.
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "pager.recents",
-      JSON.stringify(['<img src=x onerror="window.__xss=1">evil']),
-    );
-  });
-  await page.goto("/app/index.html");
-  await expect(page.getByTestId("start")).toBeVisible();
+  await seedRecents(page, ['<img src=x onerror="window.__xss=1">evil']);
+  await openApp(page);
 
   expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
   expect(await page.locator(".recent-list img").count()).toBe(0);
@@ -92,14 +86,13 @@ test("document names render as text, not HTML (no injection into the chrome)", a
 });
 
 test("corrupt recents storage does not break the start screen", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("pager.recents", '"not-an-array"'));
-  await page.goto("/app/index.html");
-  await expect(page.getByTestId("start")).toBeVisible();
+  await seedRecents(page, "not-an-array");
+  await openApp(page);
   await expect(page.locator("[data-doc=prose]")).toBeVisible();
 });
 
 test("chrome ignores spoofed messages not from the content frame", async ({ page }) => {
-  await page.goto("/app/index.html");
+  await openApp(page);
   await page.locator("[data-doc=prose]").click();
   const counter = page.getByTestId("counter");
   await expect(counter).toHaveText(/^1 \/ \d+$/);
