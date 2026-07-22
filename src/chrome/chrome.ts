@@ -106,12 +106,12 @@ class Chrome {
     this.state = { pageCount: 1, currentPage: 0, locked: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
-    // The document goes in via the iframe's `src` property below.
+    // The content iframe is created in JS below (with its src set before it is
+    // inserted), so the document value is never HTML-parsed.
     this.root.innerHTML = `
       <div class="reading" data-testid="reading">
         <div class="stage" data-testid="stage">
           <button class="chevron left" data-testid="prev" aria-label="Previous page">‹</button>
-          <iframe class="paper" data-testid="paper" sandbox="allow-scripts allow-same-origin"></iframe>
           <button class="chevron right" data-testid="next" aria-label="Next page">›</button>
         </div>
         <div class="statusbar">
@@ -123,14 +123,18 @@ class Chrome {
       </div>`;
 
     const q = <T extends HTMLElement>(sel: string) => this.root.querySelector<T>(sel)!;
-    const iframe = q<HTMLIFrameElement>("[data-testid=paper]");
     const prev = q<HTMLButtonElement>("[data-testid=prev]");
     const next = q<HTMLButtonElement>("[data-testid=next]");
     this.els = { counter: q("[data-testid=counter]"), prev, next };
-    this.frame = iframe;
     prev.addEventListener("click", () => this.prev());
     next.addEventListener("click", () => this.next());
     q("[data-testid=back]").addEventListener("click", () => this.showStart());
+
+    const iframe = document.createElement("iframe");
+    iframe.className = "paper";
+    iframe.dataset.testid = "paper";
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    this.frame = iframe;
 
     iframe.addEventListener("load", () => {
       const win = iframe.contentWindow;
@@ -145,9 +149,10 @@ class Chrome {
       this.unsub = this.transport.onMessage((msg) => this.onMessage(msg));
     });
 
-    // Setting `src` as a property (not via interpolated HTML) starts the load
-    // now that the listener is attached; the value is never HTML-parsed.
+    // src set before insertion => exactly one load event across engines (an
+    // empty-src iframe can fire a spurious about:blank load on some engines).
     iframe.src = `/app/content.html?fixture=${encodeURIComponent(fixture)}`;
+    q("[data-testid=stage]").appendChild(iframe);
 
     this.attachInput();
   }
