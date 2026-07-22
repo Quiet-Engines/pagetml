@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -8 430 152" fill="none"
+     stroke="#e7e9ee" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-label="pager">
+  <!-- Direction D "Page turn": all-lowercase; the p's bowl leaves a fading
+       crescent behind it — a page caught mid-turn. Same grid/weight as the
+       primary wordmark. Drop the crescent below ~120px wide; swap stroke to
+       #171b24 for light backgrounds. -->
+  <path d="M74 42 A32 32 0 0 1 74 94" opacity="0.38"/>
+  <path d="M10 36 V130"/>
+  <circle cx="42" cy="68" r="32"/>
+  <circle cx="137" cy="68" r="32"/>
+  <path d="M169 36 V100"/>
+  <circle cx="227" cy="68" r="32"/>
+  <path d="M259 36 V108 A22 22 0 0 1 237 130"/>
+  <path d="M285 68 H349"/>
+  <path d="M349 68 A32 32 0 1 0 343.2 86.4"/>
+  <path d="M373 36 V100"/>
+  <path d="M373 64 A28 28 0 0 1 401 36"/>
+  <circle cx="401" cy="98" r="8" fill="#f5a623" stroke="none"/>
+</svg>

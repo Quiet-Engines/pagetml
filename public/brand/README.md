@@ -40,6 +40,22 @@ The app chrome (`src/chrome/chrome.ts`) inlines the wordmark with
 `stroke="currentColor"` so it inherits chrome text color; only the period is
 hard-amber.
 
+## Alternate directions (`proposals/`)
+
+Three unshipped explorations, same construction discipline, different voice.
+Each keeps the amber accent as the lone colored element:
+
+- `b-editorial.svg` — thin monoline capitals, wide tracking (stroke 7, cap 90).
+  Quiet and literary, like a book spine.
+- `c-technical.svg` — heavy cut of the primary grid (stroke 19) with flat butt
+  terminals and a **square** amber dot (a tiny page). Engineered, sturdy.
+- `d-pageturn.svg` — all-lowercase; the p's bowl trails a fading crescent
+  (opacity .38) — a page caught mid-turn. Drop the crescent below ~120 px.
+
+All are drawn in dark-chrome ink; swap stroke `#e7e9ee` → `#171b24` for light
+backgrounds. If one is promoted, move it up a directory and re-cut the mark to
+match.
+
 ## Usage rules
 
 - Don't set the period in any color but amber, and don't add a second amber

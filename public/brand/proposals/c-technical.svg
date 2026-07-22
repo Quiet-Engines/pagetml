@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -8 402 152" fill="none"
+     stroke="#e7e9ee" stroke-width="19" stroke-linecap="butt" stroke-linejoin="miter"
+     role="img" aria-label="Pager">
+  <!-- Direction C "Technical": heavy weight, flat (butt) terminals, square amber
+       page-dot. Same construction grid as the primary wordmark, stroke 19.
+       Swap stroke to #171b24 for light backgrounds. -->
+  <path d="M10 100 V8"/>
+  <path d="M10 17.5 H35 A17.5 17.5 0 0 1 35 52.5 H10"/>
+  <circle cx="111" cy="68" r="32"/>
+  <path d="M143 36 V100"/>
+  <circle cx="201" cy="68" r="32"/>
+  <path d="M233 36 V108 A22 22 0 0 1 211 130"/>
+  <path d="M259 68 H323"/>
+  <path d="M323 68 A32 32 0 1 0 317.2 86.4"/>
+  <path d="M347 36 V100"/>
+  <path d="M347 64 A28 28 0 0 1 375 36"/>
+  <rect x="367" y="82" width="18" height="18" fill="#f5a623" stroke="none"/>
+</svg>

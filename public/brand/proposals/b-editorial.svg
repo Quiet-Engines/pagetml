@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 452 116" fill="none"
+     stroke="#e7e9ee" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-label="Pager">
+  <!-- Direction B "Editorial": thin monoline caps, wide tracking. Grid: cap y=5,
+       baseline y=95, stroke 7. Swap stroke to #171b24 for light backgrounds. -->
+  <path d="M5 95 V5"/>
+  <path d="M5 5 H30 A22.5 22.5 0 0 1 30 50 H5"/>
+  <path d="M82 95 L107 5 L132 95"/>
+  <path d="M92 65 H122"/>
+  <path d="M241.8 18.2 A45 45 0 1 0 255 50 L228 50"/>
+  <path d="M320 5 H285 V95 H320"/>
+  <path d="M285 50 H312"/>
+  <path d="M355 95 V5 H380 A22.5 22.5 0 0 1 380 50 H355"/>
+  <path d="M380 50 L398 95"/>
+  <circle cx="424" cy="91" r="6.5" fill="#f5a623" stroke="none"/>
+</svg>
