@@ -43,6 +43,13 @@ export type EngineToChrome = StateMessage | AnchorMessage;
 export type ChromeToEngine = CommandMessage;
 export type PagerMessage = EngineToChrome | ChromeToEngine;
 
+/** A message payload without the protocol version — the transport stamps `v`,
+ *  so callers never hand-write it. */
+export type Outgoing =
+  | Omit<StateMessage, "v">
+  | Omit<AnchorMessage, "v">
+  | Omit<CommandMessage, "v">;
+
 /** Narrowing guard for anything arriving over postMessage. */
 export function isPagerMessage(data: unknown): data is PagerMessage {
   return (
@@ -61,8 +68,10 @@ export function isPagerMessage(data: unknown): data is PagerMessage {
  */
 export function createTransport(remote: Window, local: Window = globalThis as unknown as Window, origin = "*") {
   return {
-    send(msg: PagerMessage) {
-      remote.postMessage(msg, origin);
+    /** Send a payload; the transport stamps the protocol version (the module
+     *  that defines the protocol owns the envelope). */
+    send(msg: Outgoing) {
+      remote.postMessage({ ...msg, v: PROTOCOL_VERSION } as PagerMessage, origin);
     },
     onMessage(handler: (msg: PagerMessage) => void): () => void {
       const listener = (ev: MessageEvent) => {

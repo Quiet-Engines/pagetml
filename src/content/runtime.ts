@@ -9,7 +9,7 @@
 // param is present the runtime fetches the fixture and grafts it into its own
 // document — an approximation of "the user's HTML, with the engine injected".
 
-import { createPaginator, createTransport, PROTOCOL_VERSION } from "../engine/index.js";
+import { createPaginator, createTransport } from "../engine/index.js";
 import type { PagerMessage } from "../engine/index.js";
 
 async function graftFixture(name: string): Promise<void> {
@@ -31,7 +31,7 @@ async function main(): Promise<void> {
 
   const engine = createPaginator({
     win: window,
-    onChange: (state) => transport.send({ v: PROTOCOL_VERSION, type: "state", state }),
+    onChange: (state) => transport.send({ type: "state", state }),
   });
   engine.observe(true);
 
@@ -48,12 +48,12 @@ async function main(): Promise<void> {
       case "lock": engine.lock(); break;
       case "unlock": engine.unlock(); break;
     }
-    transport.send({ v: PROTOCOL_VERSION, type: "anchor", anchor: engine.getAnchor() });
+    transport.send({ type: "anchor", anchor: engine.getAnchor() });
   });
 
   // The engine emits its initial state during construction (above); send the
   // current anchor too so the chrome can persist position from the start.
-  transport.send({ v: PROTOCOL_VERSION, type: "anchor", anchor: engine.getAnchor() });
+  transport.send({ type: "anchor", anchor: engine.getAnchor() });
 }
 
 void main();

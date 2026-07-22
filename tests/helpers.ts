@@ -1,19 +1,9 @@
 import { type Page } from "@playwright/test";
 
 // Shared across the spec files so the fixture list and load routine live in one
-// place (the fixture set otherwise had to be kept in sync across three files).
-
-export const FIXTURES = [
-  "prose",
-  "breaks",
-  "tall-media",
-  "fixed-sticky",
-  "scroll-shell",
-  "scroll-shell-nested",
-  "sticky-midflow",
-  "tables-code",
-  "gdocs-export",
-] as const;
+// place. The fixture list itself is the shared src/fixtures.ts, so app and tests
+// can't drift.
+export { FIXTURES } from "../src/fixtures.js";
 
 // A few representative window sizes. Auto-fit means page counts differ across
 // these; the invariants must hold at every size (spec §7).

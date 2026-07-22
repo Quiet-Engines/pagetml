@@ -7,22 +7,13 @@
 // (Presentation mode is M3; the Tauri shell, real file open, pager:// and
 // persistence are the native M2 pieces, deferred until there's a build env.)
 
-import { createTransport, PROTOCOL_VERSION } from "../engine/index.js";
+import { createTransport } from "../engine/index.js";
 import type { PageState, PagerMessage } from "../engine/index.js";
+import { FIXTURES } from "../fixtures.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
 // fixture corpus stands in for "documents on disk".
-const SAMPLE_DOCS = [
-  "prose",
-  "breaks",
-  "tall-media",
-  "fixed-sticky",
-  "scroll-shell",
-  "scroll-shell-nested",
-  "sticky-midflow",
-  "tables-code",
-  "gdocs-export",
-];
+const SAMPLE_DOCS = FIXTURES;
 const RECENTS_KEY = "pager.recents";
 
 function getRecents(): string[] {
@@ -52,6 +43,9 @@ class Chrome {
   private keyHandler?: (e: KeyboardEvent) => void;
   private wheelAccum = 0;
   private wheelLock = false;
+  // Status-bar elements, cached when reading mode is built (updated on every
+  // `state` message, so we don't re-query the DOM per page turn).
+  private els?: { counter: HTMLElement; prev: HTMLButtonElement; next: HTMLButtonElement };
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -69,17 +63,12 @@ class Chrome {
          <span class="meta">${meta}</span>
        </button>`;
 
-    const seen = new Set<string>();
-    const rows: string[] = [];
-    for (const n of recents) {
-      if (seen.has(n)) continue;
-      seen.add(n);
-      rows.push(docItem(n, "recent"));
-    }
-    for (const n of SAMPLE_DOCS) {
-      if (seen.has(n)) continue;
-      rows.push(docItem(n, "sample"));
-    }
+    // getRecents() is already deduped, so the only dedup needed is recents vs.
+    // samples: a Set-union preserves recents-first order and drops repeats.
+    const recentSet = new Set(recents);
+    const rows = [...new Set([...recents, ...SAMPLE_DOCS])].map((n) =>
+      docItem(n, recentSet.has(n) ? "recent" : "sample"),
+    );
 
     this.root.innerHTML = `
       <div class="start" data-testid="start">
@@ -102,6 +91,7 @@ class Chrome {
   // --- reading mode ---------------------------------------------------------
 
   open(fixture: string): void {
+    this.teardownReading(); // leak-safe regardless of caller
     addRecent(fixture);
     this.state = { pageCount: 1, currentPage: 0, locked: false };
 
@@ -122,10 +112,14 @@ class Chrome {
         </div>
       </div>`;
 
-    const iframe = this.root.querySelector<HTMLIFrameElement>("[data-testid=paper]")!;
-    this.root.querySelector("[data-testid=prev]")!.addEventListener("click", () => this.prev());
-    this.root.querySelector("[data-testid=next]")!.addEventListener("click", () => this.next());
-    this.root.querySelector("[data-testid=back]")!.addEventListener("click", () => this.showStart());
+    const q = <T extends HTMLElement>(sel: string) => this.root.querySelector<T>(sel)!;
+    const iframe = q<HTMLIFrameElement>("[data-testid=paper]");
+    const prev = q<HTMLButtonElement>("[data-testid=prev]");
+    const next = q<HTMLButtonElement>("[data-testid=next]");
+    this.els = { counter: q("[data-testid=counter]"), prev, next };
+    prev.addEventListener("click", () => this.prev());
+    next.addEventListener("click", () => this.next());
+    q("[data-testid=back]").addEventListener("click", () => this.showStart());
 
     iframe.addEventListener("load", () => {
       const win = iframe.contentWindow;
@@ -143,6 +137,7 @@ class Chrome {
     this.unsub?.();
     this.unsub = undefined;
     this.transport = undefined;
+    this.els = undefined;
     if (this.keyHandler) window.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = undefined;
   }
@@ -157,7 +152,7 @@ class Chrome {
   }
 
   private send(command: Command): void {
-    this.transport?.send({ v: PROTOCOL_VERSION, type: "command", command });
+    this.transport?.send({ type: "command", command });
   }
   private next(): void { this.send({ name: "next" }); }
   private prev(): void { this.send({ name: "prev" }); }
@@ -165,12 +160,11 @@ class Chrome {
   private last(): void { this.send({ name: "last" }); }
 
   private updateStatus(): void {
-    const counter = this.root.querySelector<HTMLElement>("[data-testid=counter]");
-    if (counter) counter.textContent = `${this.state.currentPage + 1} / ${this.state.pageCount}`;
-    const prev = this.root.querySelector<HTMLButtonElement>("[data-testid=prev]");
-    const next = this.root.querySelector<HTMLButtonElement>("[data-testid=next]");
-    if (prev) prev.disabled = this.state.currentPage <= 0;
-    if (next) next.disabled = this.state.currentPage >= this.state.pageCount - 1;
+    if (!this.els) return;
+    const { currentPage, pageCount } = this.state;
+    this.els.counter.textContent = `${currentPage + 1} / ${pageCount}`;
+    this.els.prev.disabled = currentPage <= 0;
+    this.els.next.disabled = currentPage >= pageCount - 1;
   }
 
   // --- input ----------------------------------------------------------------
