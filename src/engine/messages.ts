@@ -24,6 +24,14 @@ export interface AnchorMessage {
   anchor: Anchor | null;
 }
 
+/** Engine → chrome: an external link was activated in the content frame; the
+ *  chrome opens it in the system browser (never inside Pager) — spec §3.4. */
+export interface OpenExternalMessage {
+  v: typeof PROTOCOL_VERSION;
+  type: "openExternal";
+  url: string;
+}
+
 /** Chrome → engine: navigation and mode commands. */
 export interface CommandMessage {
   v: typeof PROTOCOL_VERSION;
@@ -39,7 +47,7 @@ export interface CommandMessage {
     | { name: "unlock" };
 }
 
-export type EngineToChrome = StateMessage | AnchorMessage;
+export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage;
 export type ChromeToEngine = CommandMessage;
 export type PagerMessage = EngineToChrome | ChromeToEngine;
 
@@ -48,6 +56,7 @@ export type PagerMessage = EngineToChrome | ChromeToEngine;
 export type Outgoing =
   | Omit<StateMessage, "v">
   | Omit<AnchorMessage, "v">
+  | Omit<OpenExternalMessage, "v">
   | Omit<CommandMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */
