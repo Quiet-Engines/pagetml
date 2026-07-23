@@ -121,14 +121,17 @@ class Chrome {
     this.root = root;
     // In the Tauri shell, load documents the OS opens (dialog / file
     // association / CLI). Inert in the browser build.
-    initNativeShell((name, url) => this.openNative(name, url));
+    initNativeShell((name, url, replay) => this.openNative(name, url, replay));
   }
 
   /** Open a document served natively over pagetml:// (Tauri shell). */
-  private openNative(name: string, url: string): void {
-    // The shell replays the pending open on frontend_ready; ignore a replay of
-    // the document already showing.
-    if (url === this.currentPagetmlUrl) return;
+  private openNative(name: string, url: string, replay: boolean): void {
+    // Ignore only a frontend_ready replay of the document already showing.
+    // A fresh open must always reload, even at the same URL: the URL is built
+    // from the basename, so it is shared by different files with the same name
+    // — and re-opening the current file (to pick up an external edit) is
+    // legitimate too.
+    if (replay && url === this.currentPagetmlUrl) return;
     this.startReading(name, undefined, url);
   }
 
@@ -278,6 +281,11 @@ class Chrome {
     const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
     this.renderRemoteToggle(toggle, isRemoteAllowed(name));
     toggle.addEventListener("click", () => this.toggleRemote(toggle));
+
+    // Push this file's stored "allow remote" preference to the shell before
+    // the frame requests its pagetml:// URL — the shell resets to default-deny
+    // on every open, so without this the toggle UI and the served CSP disagree.
+    if (pagetmlUrl) nativeSetRemote(isRemoteAllowed(name));
 
     this.frame = this.buildFrame();
     q("[data-testid=stage]").appendChild(this.frame);

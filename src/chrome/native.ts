@@ -27,19 +27,21 @@ export function isNative(): boolean {
 
 /** Wire the shell's open-document event to `open(name, url)`. No-op in a plain
  *  browser. */
-export function initNativeShell(open: (name: string, url: string) => void): void {
+export function initNativeShell(open: (name: string, url: string, replay: boolean) => void): void {
   const t = tauri();
   if (!t) return;
-  const openUrl = (url: string) => {
-    // pagetml://localhost/<encoded name> → display name.
-    const name = decodeURIComponent(url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
-    open(name, url);
-  };
   // A document opened at launch (CLI argument / OS file association) is
   // emitted before this listener exists. Once subscribed, tell the shell we're
-  // ready so it replays any pending open through the same event.
+  // ready so it replays any pending open through the same event (flagged
+  // `replay` so the chrome can ignore a re-delivery of the current document).
   void t.event
-    .listen("open-document", (e) => openUrl(String(e.payload)))
+    .listen("open-document", (e) => {
+      const p = e.payload as { url?: unknown; replay?: unknown };
+      if (typeof p?.url !== "string") return;
+      // pagetml://localhost/<encoded name> → display name.
+      const name = decodeURIComponent(p.url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
+      open(name, p.url, p.replay === true);
+    })
     .then(() => t.core.invoke("frontend_ready"));
 }
 

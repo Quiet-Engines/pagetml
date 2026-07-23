@@ -172,11 +172,15 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
 
     let state = app.state::<AppState>();
     *state.base_dir.lock().unwrap() = Some(dir);
+    // Every open starts default-deny; the chrome pushes the file's stored
+    // "allow remote" preference via set_remote when it loads the document
+    // (QE-1431 — without this, the previous document's relaxed CSP would leak).
+    *state.remote_allowed.lock().unwrap() = false;
 
     let url = format!("{SCHEME}://localhost/{}", urlencoding::encode(&file));
     *state.document_url.lock().unwrap() = Some(url.clone());
     // The chrome listens for this and loads `url` into its content frame.
-    let _ = app.emit("open-document", url);
+    let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": false }));
 }
 
 /// Called by the chrome once its `open-document` listener is registered. A
@@ -186,7 +190,10 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
 #[tauri::command]
 fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
     if let Some(url) = state.document_url.lock().unwrap().clone() {
-        let _ = app.emit("open-document", url);
+        // `replay` lets the chrome ignore a re-delivery of the document it
+        // already shows without suppressing genuine re-opens (which share the
+        // URL: it is built from the basename).
+        let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": true }));
     }
 }
 
@@ -241,7 +248,7 @@ pub fn run() {
         .run(|app, event| {
             // macOS delivers file-association opens as an app event, not argv
             // (NOTES.md #5). Runtime opens reach the chrome via `open-document`;
-            // a launch open lands in state before the chrome pulls `initial_url`.
+            // a launch open lands in state and is replayed on `frontend_ready`.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = event {
                 for url in urls {

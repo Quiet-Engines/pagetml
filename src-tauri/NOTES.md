@@ -7,8 +7,8 @@ shell: window + chrome load, the dialog command bridge, and CLI-argument open �
 found and fixed in that pass:
 
 - An `open-document` event emitted from `setup()` fires before the page's JS
-  exists and is lost — the chrome now *pulls* the launch document via the
-  `initial_url` command (dialog/runtime opens still push via the event).
+  exists and is lost — the shell keeps the document URL in state and replays
+  it through the same event once the chrome invokes `frontend_ready`.
 - The injected runtime only booted via `?fixture=` or `loadDocument`; on a
   `pagetml://` document it now boots directly (the document IS the content).
 

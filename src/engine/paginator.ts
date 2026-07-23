@@ -11,7 +11,7 @@
 
 import type { Anchor, PageState, PaginatorOptions } from "./types.js";
 import { measureInFlow, pageAtX, pageCountForExtent } from "./measure.js";
-import { captureAnchor, pageForAnchor } from "./anchor.js";
+import { captureAnchor, pageForAnchor, pageRangeForAnchor } from "./anchor.js";
 import { injectBaseStyle, normalizeContent } from "./normalize.js";
 
 const FLOW_CLASS = "pagetml-flow";
@@ -145,9 +145,15 @@ export class Paginator {
     this.layout();
 
     // Restore the reader's position from the live anchor when we have one.
-    const target = this.currentAnchor
-      ? pageForAnchor(this.currentAnchor, this.flow, this.stride)
-      : this._currentPage;
+    // The anchor's element may span several pages (a spilling leaf captured on
+    // a page holding only its tail), so clamp the previous page into its range
+    // instead of jumping to its start — an unchanged layout must keep the
+    // reader exactly where they were.
+    let target = this._currentPage;
+    if (this.currentAnchor) {
+      const range = pageRangeForAnchor(this.currentAnchor, this.flow, this.stride);
+      target = Math.min(Math.max(this._currentPage, range.start), range.end);
+    }
     this._currentPage = this.clampPage(target);
 
     // Capture the anchor (a layout read) before writing the transform, so the

@@ -109,3 +109,22 @@ export function pageForAnchor(anchor: Anchor, flow: HTMLElement, pageStride: num
   const rect = measureInFlow(el, flow);
   return pageAtX(rect.left, pageStride);
 }
+
+/**
+ * The full page range the anchor's element spans — from the page containing
+ * its start to the page containing its last pixel. A spilling leaf (captured
+ * as a fallback on a page holding only its tail) spans several pages; callers
+ * restoring a live position should clamp into this range rather than jump to
+ * the start page.
+ */
+export function pageRangeForAnchor(
+  anchor: Anchor,
+  flow: HTMLElement,
+  pageStride: number,
+): { start: number; end: number } {
+  const el = elementAtPath(flow, anchor.path);
+  const rect = measureInFlow(el, flow);
+  const start = pageAtX(rect.left, pageStride);
+  const end = Math.max(start, pageAtX(Math.max(rect.left, rect.right - 1), pageStride));
+  return { start, end };
+}
