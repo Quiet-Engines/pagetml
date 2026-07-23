@@ -7,6 +7,15 @@ import { openApp } from "./helpers.js";
 // These tests assert that logical behavior.
 
 async function present(page: Page, fixture = "prose"): Promise<void> {
+  // On macOS Chromium the chrome's best-effort requestFullscreen actually
+  // succeeds, putting the OS window in fullscreen — after which
+  // setViewportSize refuses to resize. Make the request fail deterministically
+  // everywhere: these tests assert the logical presentation state, not OS
+  // fullscreen.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () =>
+      Promise.reject(new Error("fullscreen disabled in tests"));
+  });
   await openApp(page);
   await page.locator(`[data-doc=${fixture}]`).click();
   await expect(page.getByTestId("counter")).toHaveText(/^1 \/ \d+$/);

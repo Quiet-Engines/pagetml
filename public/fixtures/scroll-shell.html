@@ -25,7 +25,10 @@
       <p>Content block three, continuing well past the first viewport height so that, if unwrapping failed, the reachability invariant would catch the lost content sitting beyond the single counted page.</p>
       <p>Content block four, more text to guarantee multiple pages after unwrapping at common window sizes.</p>
       <p>Content block five, still going, so the resize round-trip has genuine content to keep an anchor against.</p>
-      <p>Content block six, the last one, leaving the final page partially filled to exercise the end boundary.</p>
+      <p>Content block six, still going so the fixture cannot fit a single page on any platform's font metrics.</p>
+      <p>Content block seven: page counts must not sit on a rendering knife edge — macOS, Windows, and Linux system fonts all measure differently, and this fixture asserts "multi-page", so it carries comfortable margin.</p>
+      <p>Content block eight, more of the same, keeping the unwrapped flow long enough that even generous viewports at small font sizes still fragment it.</p>
+      <p>Content block nine, the last one, leaving the final page partially filled to exercise the end boundary.</p>
     </div>
   </body>
 </html>

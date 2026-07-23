@@ -26,8 +26,10 @@ test("mid-document sticky keeps its page instead of pinning to the origin", asyn
     position: window.__pagetml.computedStyle("#midsticky", "position"),
     pageCount: window.__pagetml.pageCount(),
   }));
-  // Converted off sticky (which is inconsistent inside columns)...
-  expect(res.position).toBe("absolute");
+  // Converted off sticky (which is inconsistent inside columns) to static —
+  // in-flow, so it fragments normally on every engine (absolute is not an
+  // option: WebKit resolves an abspos static position against column 1).
+  expect(res.position).toBe("static");
   // ...and, with the author inset neutralized, it sits on a later page with its
   // content rather than being pinned to the origin (page 0). (We assert on the
   // resulting page, not the computed `top`, since getComputedStyle resolves

@@ -82,10 +82,20 @@ export function normalizeContent(root: HTMLElement, win: Window): void {
     if (!(el instanceof HTMLElementCtor)) continue;
     const position = win.getComputedStyle(el).position;
 
-    if (position === "fixed" || position === "sticky") {
+    if (position === "fixed") {
       el.style.setProperty("position", "absolute", "important");
       // Auto insets => the absolute box renders at its static (in-flow)
       // position instead of being yanked to the containing block's edge.
+      el.style.setProperty("top", "auto", "important");
+      el.style.setProperty("right", "auto", "important");
+      el.style.setProperty("bottom", "auto", "important");
+      el.style.setProperty("left", "auto", "important");
+    } else if (position === "sticky") {
+      // Sticky is in-flow, so `static` keeps the element exactly at its flow
+      // position and lets it fragment across columns. (Converting to absolute
+      // is engine-inconsistent: WebKit resolves an abspos static position in a
+      // multicol against the first column, pinning the element to page 0.)
+      el.style.setProperty("position", "static", "important");
       el.style.setProperty("top", "auto", "important");
       el.style.setProperty("right", "auto", "important");
       el.style.setProperty("bottom", "auto", "important");

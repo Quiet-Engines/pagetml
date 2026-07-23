@@ -14,7 +14,21 @@ async function openContent(page: Page): Promise<Frame> {
   return page.frames().find((f) => f.url().includes("/app/content.html"))!;
 }
 
-test("remote network from content is blocked by default (CSP)", async ({ page }) => {
+test("remote network from content is blocked by default (CSP)", async ({ page, browserName }) => {
+  // WebKit enforces img-src etc. but does NOT stop connect-src traffic: a
+  // no-cors fetch leaves the browser (and resolves) despite the header. CSP
+  // alone is therefore not the network gate on WKWebView — the shell needs a
+  // native blocker (WKContentRuleList) for QE-1431. Expected-fail so an
+  // upstream WebKit fix surfaces as an "unexpected pass".
+  test.fail(browserName === "webkit", "WebKit connect-src does not block the request leaving");
+  // The security property is that no request LEAVES the browser — assert via
+  // interception (which also keeps test traffic off the real network), not
+  // just the fetch result.
+  let left = 0;
+  await page.route("https://example.com/**", (route) => {
+    left++;
+    return route.abort();
+  });
   const frame = await openContent(page);
   const result = await frame.evaluate(async () => {
     try {
@@ -25,6 +39,7 @@ test("remote network from content is blocked by default (CSP)", async ({ page })
     }
   });
   expect(result).toBe("blocked");
+  expect(left, "no request may leave the content frame").toBe(0);
 });
 
 test("content cannot navigate the top-level app away", async ({ page }) => {
