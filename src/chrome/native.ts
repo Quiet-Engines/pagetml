@@ -4,9 +4,9 @@
 //
 // When running in the shell, the Rust side (src-tauri/src/lib.rs) opens files
 // (dialog / OS file association / CLI) and emits an `open-document` event with
-// the `pager://` URL to load. Here we forward that to the chrome, which loads
+// the `pagetml://` URL to load. Here we forward that to the chrome, which loads
 // the URL directly into its content frame (the runtime is injected server-side
-// by the pager:// handler, so no `loadDocument` message is needed).
+// by the pagetml:// handler, so no `loadDocument` message is needed).
 
 interface TauriGlobal {
   event: {
@@ -30,12 +30,17 @@ export function isNative(): boolean {
 export function initNativeShell(open: (name: string, url: string) => void): void {
   const t = tauri();
   if (!t) return;
-  void t.event.listen("open-document", (e) => {
-    const url = String(e.payload);
-    // pager://localhost/<encoded name> → display name.
+  const openUrl = (url: string) => {
+    // pagetml://localhost/<encoded name> → display name.
     const name = decodeURIComponent(url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
     open(name, url);
-  });
+  };
+  // A document opened at launch (CLI argument / OS file association) is
+  // emitted before this listener exists. Once subscribed, tell the shell we're
+  // ready so it replays any pending open through the same event.
+  void t.event
+    .listen("open-document", (e) => openUrl(String(e.payload)))
+    .then(() => t.core.invoke("frontend_ready"));
 }
 
 /** Open the native file dialog (the shell serves the pick via the event above). */
@@ -44,7 +49,7 @@ export function nativeOpenDialog(): void {
 }
 
 /** Tell the shell whether the current document may load remote resources, so the
- *  pager:// CSP header is relaxed/tightened on reload (QE-1431). */
+ *  pagetml:// CSP header is relaxed/tightened on reload (QE-1431). */
 export function nativeSetRemote(allowed: boolean): void {
   void tauri()?.core.invoke("set_remote", { allowed });
 }

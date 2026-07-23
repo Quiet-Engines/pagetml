@@ -1,12 +1,26 @@
 # src-tauri — status and finishing notes
 
-**This scaffold was written without a build environment: it has NOT been
-compiled or run.** It's a correct-as-possible starting point for the native
-shell (QE-1427/1428/1429). Expect to fix compile errors and adjust Tauri v2 API
-details on the first `cargo` run. The security-critical logic — the `pager://`
-path-traversal guard and the default-deny CSP in `src/lib.rs` — is the part
-worth reviewing closely; the wiring around it is the part most likely to need
-small changes.
+**Status (2026-07-23): compiled, launched, and driven on macOS.** The scaffold
+built clean on the first `cargo check` (no API drift). Verified in the running
+shell: window + chrome load, the dialog command bridge, and CLI-argument open →
+`pagetml://` serving → runtime injection → pagination. Two launch bugs were
+found and fixed in that pass:
+
+- An `open-document` event emitted from `setup()` fires before the page's JS
+  exists and is lost — the chrome now *pulls* the launch document via the
+  `initial_url` command (dialog/runtime opens still push via the event).
+- The injected runtime only booted via `?fixture=` or `loadDocument`; on a
+  `pagetml://` document it now boots directly (the document IS the content).
+
+Still native-unverified: OS file association end-to-end (needs a bundled
+build; the `RunEvent::Opened` handler is in place), menus, and the QE-1431
+follow-up below.
+
+**WKWebView CSP finding (QE-1431):** WebKit does not stop `connect-src`
+traffic — a `no-cors` fetch leaves despite the CSP header (see README go/no-go
+section). The `pagetml://` CSP header is necessary but not sufficient on
+macOS: add a `WKContentRuleList` blocking non-`pagetml://` loads, relaxed by
+the per-file remote toggle.
 
 ## First run
 
@@ -19,52 +33,31 @@ npm run tauri dev                # builds src-tauri + launches the window over t
 If `npm run tauri` can't find the CLI, `cargo install tauri-cli --version '^2'` and
 use `cargo tauri dev` instead.
 
-## Known TODOs / things to verify
+## Resolved during the 2026-07-23 native bring-up
 
-1. **Icons.** `tauri.conf.json` references `icons/*`. Generate them:
-   `npm run tauri icon path/to/logo.png` (creates `src-tauri/icons/`). The build
-   will fail until these exist.
+1. **Icons** — generated into `src-tauri/icons/` from the brand mark
+   (`public/brand/mark.svg` on the logo branch) via `npm run tauri icon`.
+2. **Content runtime resource** — `npm run build:runtime` output verified
+   self-contained; in dev, tauri-build copies it to `target/debug/resources/`,
+   where `resolve(..., BaseDirectory::Resource)` finds it. After editing
+   runtime sources, re-run `build:runtime` and re-copy (or touch a Rust file to
+   trigger the dev rebuild) — the dev copy does not auto-sync.
+3. **Frontend build layout** — `dist/app/index.html` confirmed.
+4. **Start-screen sample docs** — gated behind `!isNative()`.
+5. **macOS "Open" event** — `RunEvent::Opened` handled in `run()` (bundled-app
+   verification pending, see status above).
+6. **Tauri v2 API drift** — none; compiled clean against tauri 2.11.
 
-2. **The content runtime resource.** The `pager://` handler injects
-   `pager://localhost/__pager__/runtime.js` and serves it from the Tauri
-   resource dir. Build it first: `npm run build:runtime` → writes
-   `src-tauri/resources/content-runtime.js` (bundled via
-   `bundle.resources`). Verify the output is a self-contained ES module (no bare
-   `import` specifiers). In `dev`, the resource dir differs from release — confirm
-   `app.path().resolve("content-runtime.js", Resource)` finds it, or serve the
-   runtime from the frontendDist during dev.
+## Remaining TODO
 
-3. **Frontend build layout.** `npm run build:app` (Vite) emits `dist/`. The
-   window loads `WebviewUrl::App("app/index.html")`, which must resolve to
-   `dist/app/index.html` in release and `http://localhost:5179/app/index.html`
-   in dev. Confirm the dist layout matches; adjust `frontendDist` / the input
-   paths in `vite.config.ts` if not.
-
-4. **Start-screen sample docs.** `SAMPLE_DOCS` in `src/chrome/chrome.ts` lists
-   the dev fixtures, which aren't bundled in the app. In the shell the document
-   list should come from OS recents instead — gate `SAMPLE_DOCS` behind
-   `!isNative()` (see `src/chrome/native.ts`) or replace it with a
-   Tauri-provided recents list.
-
-5. **macOS "Open" event.** OS file-association on macOS delivers the opened path
-   via the `RunEvent::Opened { urls }` app event, not `argv`. Handle it in
-   `.build()`/`.run()` and call `open_path(...)`. The CLI/`argv` path in
-   `setup()` covers Windows/Linux.
-
-6. **Tauri v2 API drift.** Verify these against the installed crate:
-   - `register_uri_scheme_protocol` closure signature (`UriSchemeContext`,
-     `Request<Vec<u8>>` → `Response<Vec<u8>>`).
-   - `tauri_plugin_dialog` `pick_file` callback type (`FilePath` → `into_path()`).
-   - `WebviewWindowBuilder`, `Emitter::emit`, `Manager::state`.
-   - `capabilities/default.json` permission identifiers (`core:*`, `dialog:*`).
-
-7. **Per-file remote toggle.** `set_remote` stores a single flag in app state;
-   the chrome calls it before reloading a native document so the `pager://` CSP
-   header relaxes to `https:`. For multiple documents, key it per document.
+- **Per-file remote toggle.** `set_remote` stores a single flag in app state;
+  the chrome calls it before reloading a native document so the `pagetml://` CSP
+  header relaxes to `https:`. For multiple documents, key it per document.
+- **`WKContentRuleList` network gate** (see CSP finding above).
 
 ## What maps to what
 
-- `src/lib.rs` `handle_pager` → QE-1429 (`pager://` + Rust traversal guard + CSP).
+- `src/lib.rs` `handle_pagetml` → QE-1429 (`pagetml://` + Rust traversal guard + CSP).
 - `open_path` / `open_dialog` / CLI arg / file association → QE-1428 (native open).
 - `WebviewWindowBuilder` in `setup` + `tauri.conf.json` → QE-1427 (window/menus).
 - `src/chrome/native.ts` → the frontend side of the bridge (inert in the browser

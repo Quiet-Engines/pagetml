@@ -9,7 +9,7 @@ import { FIXTURES, loadFixture } from "./helpers.js";
 for (const fixture of FIXTURES) {
   test(`${fixture} paginates into multiple pages`, async ({ page }, testInfo) => {
     await loadFixture(page, fixture, 800, 600);
-    const m = await page.evaluate(() => window.__pager.metrics());
+    const m = await page.evaluate(() => window.__pagetml.metrics());
     testInfo.annotations.push({
       type: "metrics",
       description: `${fixture} @ 800x600 → ${m.pageCount} pages (stride ${m.stride}px, scrollWidth ${m.scrollWidth}px)`,

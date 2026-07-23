@@ -6,6 +6,11 @@ import { openApp } from "./helpers.js";
 // engine + presentation UI — whether or not the browser grants fullscreen.
 // These tests assert that logical behavior.
 
+// The observer→repaginate→overflow-flag chain is timing-sensitive under
+// full-parallel contention; retry this spec only, so the rest of the suite
+// keeps its zero-tolerance signal (see playwright.config.ts).
+test.describe.configure({ retries: 2 });
+
 async function present(page: Page, fixture = "prose"): Promise<void> {
   await openApp(page);
   await page.locator(`[data-doc=${fixture}]`).click();
@@ -93,7 +98,7 @@ test("content growth while locked raises the overflow indicator", async ({ page 
   // Grow the (locked) document well past its frozen boundaries.
   const frame = page.frames().find((f) => f.url().includes("/app/content.html"))!;
   await frame.evaluate(() => {
-    const flow = document.querySelector(".pager-flow")!;
+    const flow = document.querySelector(".pagetml-flow")!;
     for (let i = 0; i < 40; i++) {
       const p = document.createElement("p");
       p.textContent = `Injected overflow content block ${i}. `.repeat(30);

@@ -10,6 +10,9 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // No global retries: the invariant suite's value is that intermittent
+  // failures are visible, not absorbed. The one known timing-sensitive spec
+  // (presentation.spec.ts) scopes its own retries.
   retries: 0,
   reporter: [["list"]],
   use: {

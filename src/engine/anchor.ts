@@ -56,6 +56,11 @@ export function captureAnchor(
 ): Anchor | null {
   const walker = flow.ownerDocument.createTreeWalker(flow, NodeFilter.SHOW_ELEMENT);
   let firstOnPage: Element | null = null;
+  // A page may hold only the spill-over tail of a leaf that *begins* on an
+  // earlier page (its union rect starts there), so no element starts on it at
+  // all — common on the last page. Track the leaf whose fragments reach into
+  // `page` as a fallback anchor.
+  let spillingLeaf: Element | null = null;
   // Read the flow origin once; measuring N children against it avoids N extra
   // flow-rect reads (each of which can force a synchronous layout).
   const flowOrigin = flow.getBoundingClientRect();
@@ -65,7 +70,20 @@ export function captureAnchor(
     const rect = measureInFlow(el, flow, flowOrigin);
     if (rect.width === 0 && rect.height === 0) continue; // not rendered
     const elPage = pageAtX(rect.left, pageStride);
-    if (elPage !== page) continue;
+    if (elPage !== page) {
+      // Cheapest guards first: this walk runs on every page turn, and
+      // textContent builds the whole subtree's text.
+      if (
+        !spillingLeaf &&
+        elPage < page &&
+        el.childElementCount === 0 &&
+        pageAtX(Math.max(rect.left, rect.right - 1), pageStride) >= page &&
+        (el.textContent ?? "").trim()
+      ) {
+        spillingLeaf = el;
+      }
+      continue;
+    }
 
     if (!firstOnPage) firstOnPage = el;
 
@@ -78,6 +96,9 @@ export function captureAnchor(
 
   if (firstOnPage) {
     return { path: pathToElement(firstOnPage, flow), offset: 0, textHint: firstTextHint(firstOnPage) };
+  }
+  if (spillingLeaf) {
+    return { path: pathToElement(spillingLeaf, flow), offset: 0, textHint: firstTextHint(spillingLeaf) };
   }
   return null;
 }

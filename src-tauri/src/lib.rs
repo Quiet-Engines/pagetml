@@ -1,17 +1,12 @@
-// Pager — native Tauri v2 shell (QE-1427/1428/1429).
-//
-// STATUS: scaffold written without a build environment — NOT yet compiled or
-// run. Treat the Tauri v2 API calls as "best effort, verify against the current
-// crate docs" (see NOTES.md). The shape and the security-critical logic (the
-// pager:// path-traversal guard and the default-deny CSP) are the parts worth
-// getting right; the wiring around them may need small adjustments.
+// PageTML — native Tauri v2 shell (QE-1427/1428/1429). See NOTES.md for
+// bring-up status and remaining native TODOs.
 //
 // Responsibilities:
 //   * create the app window that hosts the chrome (../app/index.html),
-//   * serve the opened document + its sibling assets over pager://, refusing to
+//   * serve the opened document + its sibling assets over pagetml://, refusing to
 //     escape the document's directory (QE-1429),
 //   * open files natively (dialog, OS file association, CLI argument) and tell
-//     the chrome which pager:// URL to load (QE-1428).
+//     the chrome which pagetml:// URL to load (QE-1428).
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -20,28 +15,37 @@ use tauri::http::{header, Request, Response, StatusCode};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
-/// Per-app state: the directory of the currently open document (the pager://
-/// sandbox root) and its per-file "allow remote resources" flag (QE-1431).
+/// The custom protocol scheme and the reserved path under it that serves the
+/// bundled content runtime. Single source of truth: the scheme registration, the
+/// CSP, the injected `<script>` URL, and the reserved-path guard must all agree,
+/// or the runtime silently 404s (dead URL) or the CSP blocks it — none of which
+/// is a compile error. Keep every `pagetml://` reference derived from these.
+const SCHEME: &str = "pagetml";
+const RUNTIME_PATH: &str = "__pagetml__/runtime.js";
+
+/// Per-app state: the directory of the currently open document (the pagetml://
+/// sandbox root), its pagetml:// URL, and its per-file "allow remote
+/// resources" flag (QE-1431).
 #[derive(Default)]
 struct AppState {
     base_dir: Mutex<Option<PathBuf>>,
-    document: Mutex<Option<PathBuf>>,
+    document_url: Mutex<Option<String>>,
     remote_allowed: Mutex<bool>,
 }
 
 /// The Content-Security-Policy served with the document. Mirrors the dev policy
-/// in vite.config.ts, but keyed to `pager:` instead of the dev server's origin.
+/// in vite.config.ts, but keyed to `pagetml:` instead of the dev server's origin.
 /// Default-deny network; the per-file toggle adds `https:`.
 fn content_csp(allow_remote: bool) -> String {
     let remote = if allow_remote { " https:" } else { "" };
     format!(
-        "default-src 'self' pager:; \
-         script-src 'self' pager: 'unsafe-inline'{remote}; \
-         style-src 'self' pager: 'unsafe-inline'{remote}; \
-         img-src 'self' pager: data: blob:{remote}; \
-         font-src 'self' pager: data:{remote}; \
-         media-src 'self' pager: data: blob:{remote}; \
-         connect-src 'self' pager:{remote}"
+        "default-src 'self' {SCHEME}:; \
+         script-src 'self' {SCHEME}: 'unsafe-inline'{remote}; \
+         style-src 'self' {SCHEME}: 'unsafe-inline'{remote}; \
+         img-src 'self' {SCHEME}: data: blob:{remote}; \
+         font-src 'self' {SCHEME}: data:{remote}; \
+         media-src 'self' {SCHEME}: data: blob:{remote}; \
+         connect-src 'self' {SCHEME}:{remote}"
     )
 }
 
@@ -83,19 +87,26 @@ fn error(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 /// dev `graftFixture`/`loadDocument` path). The runtime itself is served at the
 /// reserved path below.
 fn inject_runtime(html: Vec<u8>) -> Vec<u8> {
-    const TAG: &str = "\n<script type=\"module\" src=\"pager://localhost/__pager__/runtime.js\"></script>\n";
+    // The marker tells the runtime the surrounding document IS the content, so
+    // it boots in place. A marker rather than a URL check keeps the runtime
+    // scheme- and platform-agnostic (Tauri serves custom schemes as
+    // https://pagetml.localhost on Windows).
+    let tag = format!(
+        "\n<script>window.__PAGETML_SERVED__=true</script>\
+         \n<script type=\"module\" src=\"{SCHEME}://localhost/{RUNTIME_PATH}\"></script>\n"
+    );
     let text = String::from_utf8_lossy(&html);
     let injected = match text.to_ascii_lowercase().rfind("</body>") {
-        Some(idx) => format!("{}{}{}", &text[..idx], TAG, &text[idx..]),
-        None => format!("{text}{TAG}"),
+        Some(idx) => format!("{}{}{}", &text[..idx], tag, &text[idx..]),
+        None => format!("{text}{tag}"),
     };
     injected.into_bytes()
 }
 
-/// The pager:// scheme handler. All requests resolve against the open
+/// The pagetml:// scheme handler. All requests resolve against the open
 /// document's directory; anything that escapes it (path traversal) is refused
 /// in Rust (QE-1429, threat model spec §4.4).
-fn handle_pager<R: tauri::Runtime>(
+fn handle_pagetml<R: tauri::Runtime>(
     ctx: tauri::UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
@@ -105,7 +116,7 @@ fn handle_pager<R: tauri::Runtime>(
     // Reserved: serve the bundled content runtime (see NOTES.md — the build must
     // place `content-runtime.js` in the app's resource dir).
     let raw_path = request.uri().path().trim_start_matches('/');
-    if raw_path == "__pager__/runtime.js" {
+    if raw_path == RUNTIME_PATH {
         return match app
             .path()
             .resolve("content-runtime.js", tauri::path::BaseDirectory::Resource)
@@ -154,18 +165,29 @@ fn handle_pager<R: tauri::Runtime>(
     response(StatusCode::OK, mime, bytes)
 }
 
-/// Point the sandbox at `path`, then tell the chrome which pager:// URL to load.
+/// Point the sandbox at `path`, then tell the chrome which pagetml:// URL to load.
 fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
     let Some(dir) = path.parent().map(Path::to_path_buf) else { return };
     let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_string();
 
     let state = app.state::<AppState>();
     *state.base_dir.lock().unwrap() = Some(dir);
-    *state.document.lock().unwrap() = Some(path.clone());
 
-    let url = format!("pager://localhost/{}", urlencoding::encode(&file));
+    let url = format!("{SCHEME}://localhost/{}", urlencoding::encode(&file));
+    *state.document_url.lock().unwrap() = Some(url.clone());
     // The chrome listens for this and loads `url` into its content frame.
     let _ = app.emit("open-document", url);
+}
+
+/// Called by the chrome once its `open-document` listener is registered. A
+/// document opened before that (CLI argument / OS file association at launch)
+/// was emitted before anyone could hear it; replay it through the same
+/// channel. The chrome ignores a replay of the document it already shows.
+#[tauri::command]
+fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
+    if let Some(url) = state.document_url.lock().unwrap().clone() {
+        let _ = app.emit("open-document", url);
+    }
 }
 
 #[tauri::command]
@@ -175,7 +197,7 @@ fn set_remote(app: tauri::AppHandle, allowed: bool) {
 
 #[tauri::command]
 fn open_dialog(app: tauri::AppHandle) {
-    // Native "Open…" — pick an .html file, then serve it via pager://.
+    // Native "Open…" — pick an .html file, then serve it via pagetml://.
     app.dialog()
         .file()
         .add_filter("HTML", &["html", "htm"])
@@ -192,13 +214,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .register_uri_scheme_protocol("pager", handle_pager)
-        .invoke_handler(tauri::generate_handler![set_remote, open_dialog])
+        .register_uri_scheme_protocol(SCHEME, handle_pagetml)
+        .invoke_handler(tauri::generate_handler![set_remote, open_dialog, frontend_ready])
         .setup(|app| {
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("app/index.html".into()))
-                .title("Pager")
+                .title("PageTML")
                 .inner_size(1100.0, 780.0)
                 .min_inner_size(640.0, 480.0)
                 .build()?;
@@ -214,6 +236,21 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Pager");
+        .build(tauri::generate_context!())
+        .expect("error while building PageTML")
+        .run(|app, event| {
+            // macOS delivers file-association opens as an app event, not argv
+            // (NOTES.md #5). Runtime opens reach the chrome via `open-document`;
+            // a launch open lands in state before the chrome pulls `initial_url`.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        open_path(app, path);
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

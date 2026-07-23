@@ -14,7 +14,7 @@ import { measureInFlow, pageAtX, pageCountForExtent } from "./measure.js";
 import { captureAnchor, pageForAnchor } from "./anchor.js";
 import { injectBaseStyle, normalizeContent } from "./normalize.js";
 
-const FLOW_CLASS = "pager-flow";
+const FLOW_CLASS = "pagetml-flow";
 const TRANSITION = "transform 250ms cubic-bezier(0.22, 0.61, 0.36, 1)";
 
 export class Paginator {

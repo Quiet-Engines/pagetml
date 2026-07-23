@@ -16,7 +16,7 @@ for (const fixture of ANCHOR_FIXTURES) {
     await loadFixture(page, fixture, 800, 600);
 
     const result = await page.evaluate(() => {
-      const h = window.__pager;
+      const h = window.__pagetml;
       // Navigate into the middle of the document and capture an anchor.
       const mid = Math.max(1, Math.floor(h.pageCount() / 2));
       h.goToPage(mid);
@@ -61,7 +61,7 @@ for (const fixture of ANCHOR_FIXTURES) {
 test("anchor page-number may legitimately change after shrink (containment, not equality)", async ({ page }) => {
   await loadFixture(page, "prose", 1000, 700);
   const res = await page.evaluate(() => {
-    const h = window.__pager;
+    const h = window.__pagetml;
     h.goToPage(2);
     const anchor = h.getAnchor()!;
     h.markAnchor(anchor);

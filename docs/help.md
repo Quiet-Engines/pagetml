@@ -1,6 +1,6 @@
-# Pager — Help
+# PageTML — Help
 
-Pager opens a local HTML document and presents it as discrete, navigable
+PageTML opens a local HTML document and presents it as discrete, navigable
 **pages** — like a slide deck or a PDF reader — instead of one long scroll. It's
 built for presenting to an audience, and for distraction-free reading.
 
@@ -67,7 +67,7 @@ and is off by default.
 
 ---
 
-## What Pager opens
+## What PageTML opens
 
 - Local `.html` / `.htm` files and their local assets.
 - Malformed HTML renders the way a browser would — there is no validation wall.
@@ -81,7 +81,7 @@ Not in this version: live URLs, EPUB, and authored slide decks.
 ## Troubleshooting
 
 - **A page looks cut off / everything is on one page.** Some app-style pages
-  wrap all content in a single scrolling box; Pager unwraps common cases, but
+  wrap all content in a single scrolling box; PageTML unwraps common cases, but
   file a report with the document if one slips through.
 - **Page counts differ between two machines.** Expected under auto-fit —
   different window sizes (and rendering engines) produce different counts. The
