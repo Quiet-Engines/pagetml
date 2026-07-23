@@ -69,12 +69,17 @@ export function captureAnchor(
     const el = node as Element;
     const rect = measureInFlow(el, flow, flowOrigin);
     if (rect.width === 0 && rect.height === 0) continue; // not rendered
-    const isLeaf = el.childElementCount === 0;
-    const hasText = (el.textContent ?? "").trim().length > 0;
     const elPage = pageAtX(rect.left, pageStride);
     if (elPage !== page) {
-      const endPage = pageAtX(Math.max(rect.left, rect.right - 1), pageStride);
-      if (!spillingLeaf && isLeaf && hasText && elPage < page && endPage >= page) {
+      // Cheapest guards first: this walk runs on every page turn, and
+      // textContent builds the whole subtree's text.
+      if (
+        !spillingLeaf &&
+        elPage < page &&
+        el.childElementCount === 0 &&
+        pageAtX(Math.max(rect.left, rect.right - 1), pageStride) >= page &&
+        (el.textContent ?? "").trim()
+      ) {
         spillingLeaf = el;
       }
       continue;
@@ -82,6 +87,8 @@ export function captureAnchor(
 
     if (!firstOnPage) firstOnPage = el;
 
+    const isLeaf = el.childElementCount === 0;
+    const hasText = (el.textContent ?? "").trim().length > 0;
     if (isLeaf && (hasText || isReplacedElement(el))) {
       return { path: pathToElement(el, flow), offset: 0, textHint: firstTextHint(el) };
     }

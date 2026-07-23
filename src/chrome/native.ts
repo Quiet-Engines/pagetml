@@ -35,12 +35,12 @@ export function initNativeShell(open: (name: string, url: string) => void): void
     const name = decodeURIComponent(url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
     open(name, url);
   };
-  void t.event.listen("open-document", (e) => openUrl(String(e.payload)));
-  // A document opened at launch (CLI argument / OS file association) lands
-  // before this listener exists, so the shell keeps it and we pull it here.
-  void t.core.invoke("initial_url").then((url) => {
-    if (typeof url === "string") openUrl(url);
-  });
+  // A document opened at launch (CLI argument / OS file association) is
+  // emitted before this listener exists. Once subscribed, tell the shell we're
+  // ready so it replays any pending open through the same event.
+  void t.event
+    .listen("open-document", (e) => openUrl(String(e.payload)))
+    .then(() => t.core.invoke("frontend_ready"));
 }
 
 /** Open the native file dialog (the shell serves the pick via the event above). */

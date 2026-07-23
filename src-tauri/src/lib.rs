@@ -1,10 +1,5 @@
-// PageTML — native Tauri v2 shell (QE-1427/1428/1429).
-//
-// STATUS: scaffold written without a build environment — NOT yet compiled or
-// run. Treat the Tauri v2 API calls as "best effort, verify against the current
-// crate docs" (see NOTES.md). The shape and the security-critical logic (the
-// pagetml:// path-traversal guard and the default-deny CSP) are the parts worth
-// getting right; the wiring around them may need small adjustments.
+// PageTML — native Tauri v2 shell (QE-1427/1428/1429). See NOTES.md for
+// bring-up status and remaining native TODOs.
 //
 // Responsibilities:
 //   * create the app window that hosts the chrome (../app/index.html),
@@ -29,11 +24,12 @@ const SCHEME: &str = "pagetml";
 const RUNTIME_PATH: &str = "__pagetml__/runtime.js";
 
 /// Per-app state: the directory of the currently open document (the pagetml://
-/// sandbox root) and its per-file "allow remote resources" flag (QE-1431).
+/// sandbox root), its pagetml:// URL, and its per-file "allow remote
+/// resources" flag (QE-1431).
 #[derive(Default)]
 struct AppState {
     base_dir: Mutex<Option<PathBuf>>,
-    document: Mutex<Option<PathBuf>>,
+    document_url: Mutex<Option<String>>,
     remote_allowed: Mutex<bool>,
 }
 
@@ -91,8 +87,14 @@ fn error(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 /// dev `graftFixture`/`loadDocument` path). The runtime itself is served at the
 /// reserved path below.
 fn inject_runtime(html: Vec<u8>) -> Vec<u8> {
-    let tag =
-        format!("\n<script type=\"module\" src=\"{SCHEME}://localhost/{RUNTIME_PATH}\"></script>\n");
+    // The marker tells the runtime the surrounding document IS the content, so
+    // it boots in place. A marker rather than a URL check keeps the runtime
+    // scheme- and platform-agnostic (Tauri serves custom schemes as
+    // https://pagetml.localhost on Windows).
+    let tag = format!(
+        "\n<script>window.__PAGETML_SERVED__=true</script>\
+         \n<script type=\"module\" src=\"{SCHEME}://localhost/{RUNTIME_PATH}\"></script>\n"
+    );
     let text = String::from_utf8_lossy(&html);
     let injected = match text.to_ascii_lowercase().rfind("</body>") {
         Some(idx) => format!("{}{}{}", &text[..idx], tag, &text[idx..]),
@@ -170,22 +172,22 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
 
     let state = app.state::<AppState>();
     *state.base_dir.lock().unwrap() = Some(dir);
-    *state.document.lock().unwrap() = Some(path.clone());
 
     let url = format!("{SCHEME}://localhost/{}", urlencoding::encode(&file));
+    *state.document_url.lock().unwrap() = Some(url.clone());
     // The chrome listens for this and loads `url` into its content frame.
     let _ = app.emit("open-document", url);
 }
 
-/// The pagetml:// URL of the document opened before the chrome's JS was running
-/// (CLI argument / OS file association at launch). The chrome pulls this on
-/// startup: an `open-document` event emitted from `setup()` fires before the
-/// page has registered its listener and would be lost.
+/// Called by the chrome once its `open-document` listener is registered. A
+/// document opened before that (CLI argument / OS file association at launch)
+/// was emitted before anyone could hear it; replay it through the same
+/// channel. The chrome ignores a replay of the document it already shows.
 #[tauri::command]
-fn initial_url(state: tauri::State<AppState>) -> Option<String> {
-    let doc = state.document.lock().unwrap();
-    let file = doc.as_ref()?.file_name()?.to_str()?;
-    Some(format!("{SCHEME}://localhost/{}", urlencoding::encode(file)))
+fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
+    if let Some(url) = state.document_url.lock().unwrap().clone() {
+        let _ = app.emit("open-document", url);
+    }
 }
 
 #[tauri::command]
@@ -213,7 +215,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .register_uri_scheme_protocol(SCHEME, handle_pagetml)
-        .invoke_handler(tauri::generate_handler![set_remote, open_dialog, initial_url])
+        .invoke_handler(tauri::generate_handler![set_remote, open_dialog, frontend_ready])
         .setup(|app| {
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.

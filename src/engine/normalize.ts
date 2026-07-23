@@ -68,10 +68,11 @@ function isScrollTrap(el: HTMLElement, win: Window, viewportH: number): boolean 
  *
  *  - **Scroll-trap shells (QE-1422):** neutralize height/overflow so the
  *    trapped content flows into columns instead of collapsing to one page.
- *  - **Fixed / sticky (QE-1421):** convert to `absolute` (fixed/sticky are
- *    inconsistent inside CSS columns across engines) AND drop the author's
- *    inset offsets, so the element stays at its static position — on the page
- *    it belongs to — rather than being pinned to the containing block's origin.
+ *  - **Fixed / sticky (QE-1421):** both are inconsistent inside CSS columns
+ *    across engines, so each maps to its nearest column-safe analog: fixed
+ *    (out-of-flow) becomes `absolute` with the author's insets dropped, so it
+ *    renders at its static position; sticky (in-flow) becomes `static`, so it
+ *    keeps its flow position and fragments normally.
  */
 export function normalizeContent(root: HTMLElement, win: Window): void {
   const viewportH = win.innerHeight;
@@ -94,12 +95,9 @@ export function normalizeContent(root: HTMLElement, win: Window): void {
       // Sticky is in-flow, so `static` keeps the element exactly at its flow
       // position and lets it fragment across columns. (Converting to absolute
       // is engine-inconsistent: WebKit resolves an abspos static position in a
-      // multicol against the first column, pinning the element to page 0.)
+      // multicol against the first column, pinning the element to page 0.
+      // No inset reset needed — insets don't apply to static boxes.)
       el.style.setProperty("position", "static", "important");
-      el.style.setProperty("top", "auto", "important");
-      el.style.setProperty("right", "auto", "important");
-      el.style.setProperty("bottom", "auto", "important");
-      el.style.setProperty("left", "auto", "important");
     }
 
     if (isScrollTrap(el, win, viewportH)) {

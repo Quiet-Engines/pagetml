@@ -6,16 +6,12 @@ import { openApp } from "./helpers.js";
 // engine + presentation UI — whether or not the browser grants fullscreen.
 // These tests assert that logical behavior.
 
+// The observer→repaginate→overflow-flag chain is timing-sensitive under
+// full-parallel contention; retry this spec only, so the rest of the suite
+// keeps its zero-tolerance signal (see playwright.config.ts).
+test.describe.configure({ retries: 2 });
+
 async function present(page: Page, fixture = "prose"): Promise<void> {
-  // On macOS Chromium the chrome's best-effort requestFullscreen actually
-  // succeeds, putting the OS window in fullscreen — after which
-  // setViewportSize refuses to resize. Make the request fail deterministically
-  // everywhere: these tests assert the logical presentation state, not OS
-  // fullscreen.
-  await page.addInitScript(() => {
-    Element.prototype.requestFullscreen = () =>
-      Promise.reject(new Error("fullscreen disabled in tests"));
-  });
   await openApp(page);
   await page.locator(`[data-doc=${fixture}]`).click();
   await expect(page.getByTestId("counter")).toHaveText(/^1 \/ \d+$/);

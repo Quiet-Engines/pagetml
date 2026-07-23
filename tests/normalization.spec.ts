@@ -30,8 +30,8 @@ test("mid-document sticky keeps its page instead of pinning to the origin", asyn
   // in-flow, so it fragments normally on every engine (absolute is not an
   // option: WebKit resolves an abspos static position against column 1).
   expect(res.position).toBe("static");
-  // ...and, with the author inset neutralized, it sits on a later page with its
-  // content rather than being pinned to the origin (page 0). (We assert on the
+  // ...and, staying in flow, it sits on a later page with its content rather
+  // than being pinned to the origin (page 0). (We assert on the
   // resulting page, not the computed `top`, since getComputedStyle resolves
   // `top:auto` on an absolute box to its used px value, not the string "auto".)
   expect(res.pageCount).toBeGreaterThan(1);

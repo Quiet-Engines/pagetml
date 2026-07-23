@@ -34,6 +34,14 @@ export async function seedRecents(page: Page, names: unknown): Promise<void> {
 
 /** Open the app chrome and wait for the start screen. */
 export async function openApp(page: Page): Promise<void> {
+  // The chrome's best-effort requestFullscreen actually succeeds on macOS
+  // Chromium, leaving the OS window fullscreen — after which setViewportSize
+  // refuses to resize. No test asserts OS fullscreen (presentation is a
+  // logical state), so fail the request deterministically suite-wide.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () =>
+      Promise.reject(new Error("fullscreen disabled in tests"));
+  });
   await page.goto("/app/index.html");
   await page.getByTestId("start").waitFor();
 }

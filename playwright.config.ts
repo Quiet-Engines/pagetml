@@ -10,10 +10,10 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  // A retry absorbs load-induced timing flakes (e.g. the observer→repaginate→
-  // overflow-check chain under full-parallel contention) without masking real
-  // failures — a genuine break fails every attempt. More retries in CI.
-  retries: process.env.CI ? 2 : 1,
+  // No global retries: the invariant suite's value is that intermittent
+  // failures are visible, not absorbed. The one known timing-sensitive spec
+  // (presentation.spec.ts) scopes its own retries.
+  retries: 0,
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:5179",

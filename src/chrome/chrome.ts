@@ -126,6 +126,9 @@ class Chrome {
 
   /** Open a document served natively over pagetml:// (Tauri shell). */
   private openNative(name: string, url: string): void {
+    // The shell replays the pending open on frontend_ready; ignore a replay of
+    // the document already showing.
+    if (url === this.currentPagetmlUrl) return;
     this.startReading(name, undefined, url);
   }
 
@@ -158,8 +161,8 @@ class Chrome {
     const recentSet = new Set(recents);
     const list = this.root.querySelector(".recent-list")!;
     // The sample fixtures exist only on the dev server; in the shell the list
-    // is recents alone (NOTES.md #4).
-    for (const name of new Set(isNative() ? recents : [...recents, ...SAMPLE_DOCS])) {
+    // is recents alone (already unique — dedup only the merged list).
+    for (const name of isNative() ? recents : [...new Set([...recents, ...SAMPLE_DOCS])]) {
       list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
     }
 

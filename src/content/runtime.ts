@@ -88,9 +88,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Served over pagetml:// (SCHEME in src-tauri/src/lib.rs) with this runtime
-  // injected: the surrounding document IS the content — boot directly.
-  if (location.protocol === "pagetml:") {
+  // The shell's pagetml:// handler injects this marker ahead of the runtime
+  // tag: the surrounding document IS the content — boot directly. (A marker,
+  // not a URL check: the serving scheme is platform-dependent — Tauri uses
+  // https://pagetml.localhost on Windows.)
+  if ((globalThis as { __PAGETML_SERVED__?: boolean }).__PAGETML_SERVED__) {
     boot(transport);
     return;
   }
