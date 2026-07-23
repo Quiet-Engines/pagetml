@@ -73,23 +73,27 @@ The invariants asserted for every fixture at multiple window sizes (spec §7):
 3. **Anchor stability** — after a resize round-trip, an anchor still resolves to
    a page containing its target element.
 
-## WKWebView go/no-go (QE-1426) — status: **provisional GO**
+## WKWebView go/no-go (QE-1426) — status: **GO**
 
 M1's exit criterion is "fixture invariants green on both Chromium and WebKit,
-WKWebView go/no-go decided." Current state:
+WKWebView go/no-go decided." Decided 2026-07-23 on macOS (the WKWebView target
+platform): **both engines green** — full suite 153/154 passed, the one
+remainder being a known-flaky timing test that passes on retry.
 
-- **Chromium (WebView2 reference engine): GREEN.** All 37 checks pass across 7
-  fixtures × 3 window sizes plus behavior tests. Recorded page counts at
-  800×600: prose 3, tall-media 3, breaks/fixed-sticky/scroll-shell/tables-code/
-  gdocs-export 2 — i.e. pagination is non-trivial, not a vacuous single page.
-- **WebKit (WKWebView proxy): NOT YET RUN HERE.** The development sandbox's
-  network policy blocks Playwright's browser CDN, so WebKit could not be
-  installed. The `engine-ci` GitHub Actions workflow installs both engines and
-  runs the suite on each; the WebKit leg there is what closes the decision.
+Getting WebKit green surfaced two genuine engine differences, both absorbed in
+the engine (not worked around in tests):
 
-The decision is **provisional GO** on the strength of (a) the technique being
-the same one Readium/epub.js ship on WKWebView in production and (b) invariants
-written to be engine-agnostic (no pixel-identical-boundary assumptions). It
-converts to a **final GO** when the WebKit CI leg is green, or flips to the
-recorded Electron fallback if WebKit reveals fragmentation failures the
-normalization layer can't absorb.
+- **Sticky normalization (QE-1421):** sticky now converts to `static`, not
+  `absolute` — WebKit resolves an abspos static position in a multicol against
+  the first column, pinning the element to page 0.
+- **Anchors on spill-over pages (QE-1417):** a page holding only the tail of a
+  leaf that begins earlier had no anchor; `captureAnchor` now falls back to the
+  leaf whose fragments reach the page.
+
+One finding stands as a **native-shell requirement rather than a no-go**:
+WebKit enforces most CSP directives but does not stop `connect-src` traffic —
+a `no-cors` fetch leaves the browser despite the header (verified by request
+interception; Chromium blocks it). The default-deny network guarantee
+(QE-1431) on WKWebView therefore needs a native gate (`WKContentRuleList`) in
+the shell; `tests/sandbox.spec.ts` documents this as an expected failure on
+WebKit that will surface as an "unexpected pass" if upstream fixes it.
