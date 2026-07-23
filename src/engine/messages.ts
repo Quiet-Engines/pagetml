@@ -49,6 +49,15 @@ export interface LoadDocumentMessage {
   html: string;
 }
 
+/** Chrome → engine: the chrome's transport is wired and listening. A natively
+ *  served document's runtime evaluates before the chrome's iframe load handler
+ *  runs, so it must not boot (and emit its initial state/anchor into the void)
+ *  until this arrives. */
+export interface ReadyMessage {
+  v: typeof PROTOCOL_VERSION;
+  type: "ready";
+}
+
 /** Chrome → engine: navigation and mode commands. */
 export interface CommandMessage {
   v: typeof PROTOCOL_VERSION;
@@ -65,7 +74,7 @@ export interface CommandMessage {
 }
 
 export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage | ActivityMessage;
-export type ChromeToEngine = CommandMessage | LoadDocumentMessage;
+export type ChromeToEngine = CommandMessage | LoadDocumentMessage | ReadyMessage;
 export type PagetmlMessage = EngineToChrome | ChromeToEngine;
 
 /** A message payload without the protocol version — the transport stamps `v`,
@@ -76,7 +85,8 @@ export type Outgoing =
   | Omit<OpenExternalMessage, "v">
   | Omit<ActivityMessage, "v">
   | Omit<CommandMessage, "v">
-  | Omit<LoadDocumentMessage, "v">;
+  | Omit<LoadDocumentMessage, "v">
+  | Omit<ReadyMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */
 export function isPagetmlMessage(data: unknown): data is PagetmlMessage {

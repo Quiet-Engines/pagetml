@@ -89,11 +89,17 @@ async function main(): Promise<void> {
   }
 
   // The shell's pagetml:// handler injects this marker ahead of the runtime
-  // tag: the surrounding document IS the content — boot directly. (A marker,
-  // not a URL check: the serving scheme is platform-dependent — Tauri uses
-  // https://pagetml.localhost on Windows.)
+  // tag: the surrounding document IS the content. (A marker, not a URL check:
+  // the serving scheme is platform-dependent.) Don't boot yet — this module
+  // evaluates before the chrome's iframe load handler wires its listener, so
+  // an immediate boot would emit the initial state/anchor into the void; wait
+  // for the chrome's `ready`.
   if ((globalThis as { __PAGETML_SERVED__?: boolean }).__PAGETML_SERVED__) {
-    boot(transport);
+    const off = transport.onMessage((msg: PagetmlMessage) => {
+      if (msg.type !== "ready") return;
+      off();
+      boot(transport);
+    });
     return;
   }
 

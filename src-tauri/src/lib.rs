@@ -31,6 +31,24 @@ struct AppState {
     base_dir: Mutex<Option<PathBuf>>,
     document_url: Mutex<Option<String>>,
     remote_allowed: Mutex<bool>,
+    /// Recently opened documents, newest first. Session-only; the persistent
+    /// store is QE-1434. The shell owns this (not the chrome's localStorage)
+    /// because re-opening needs the real path.
+    recents: Mutex<Vec<PathBuf>>,
+}
+
+/// The webview-facing base URL for the custom scheme. macOS/Linux navigate
+/// custom schemes directly; Windows/Android serve them from a localhost
+/// domain. (Windows form is compile-checked only until the M5 track runs it.)
+fn scheme_base() -> String {
+    #[cfg(any(windows, target_os = "android"))]
+    {
+        format!("http://{SCHEME}.localhost")
+    }
+    #[cfg(not(any(windows, target_os = "android")))]
+    {
+        format!("{SCHEME}://localhost")
+    }
 }
 
 /// The Content-Security-Policy served with the document. Mirrors the dev policy
@@ -93,7 +111,8 @@ fn inject_runtime(html: Vec<u8>) -> Vec<u8> {
     // https://pagetml.localhost on Windows).
     let tag = format!(
         "\n<script>window.__PAGETML_SERVED__=true</script>\
-         \n<script type=\"module\" src=\"{SCHEME}://localhost/{RUNTIME_PATH}\"></script>\n"
+         \n<script type=\"module\" src=\"{}/{RUNTIME_PATH}\"></script>\n",
+        scheme_base()
     );
     let text = String::from_utf8_lossy(&html);
     let injected = match text.to_ascii_lowercase().rfind("</body>") {
@@ -154,12 +173,24 @@ fn handle_pagetml<R: tauri::Runtime>(
 
     let mime = mime_for(&canonical);
     if mime == "text/html" {
-        // The document response carries the CSP and the injected runtime.
+        // The CSP header applies to every served HTML document, but the
+        // runtime is injected only into the opened document itself — an HTML
+        // sibling embedded via <iframe> must render untouched, not boot its
+        // own paginator inside the user's page.
+        let is_document = state
+            .document_url
+            .lock()
+            .unwrap()
+            .as_deref()
+            .and_then(|u| u.rsplit_once('/').map(|(_, tail)| tail.to_string()))
+            .and_then(|tail| urlencoding::decode(&tail).ok().map(|t| t.into_owned()))
+            .is_some_and(|doc| doc == decoded);
+        let body = if is_document { inject_runtime(bytes) } else { bytes };
         return Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
             .header("Content-Security-Policy", content_csp(allow_remote))
-            .body(inject_runtime(bytes))
+            .body(body)
             .unwrap_or_else(|_| Response::new(Vec::new()));
     }
     response(StatusCode::OK, mime, bytes)
@@ -176,8 +207,14 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
     // "allow remote" preference via set_remote when it loads the document
     // (QE-1431 — without this, the previous document's relaxed CSP would leak).
     *state.remote_allowed.lock().unwrap() = false;
+    {
+        let mut recents = state.recents.lock().unwrap();
+        recents.retain(|p| p != &path);
+        recents.insert(0, path.clone());
+        recents.truncate(10);
+    }
 
-    let url = format!("{SCHEME}://localhost/{}", urlencoding::encode(&file));
+    let url = format!("{}/{}", scheme_base(), urlencoding::encode(&file));
     *state.document_url.lock().unwrap() = Some(url.clone());
     // The chrome listens for this and loads `url` into its content frame.
     let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": false }));
@@ -194,6 +231,30 @@ fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
         // already shows without suppressing genuine re-opens (which share the
         // URL: it is built from the basename).
         let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": true }));
+    }
+}
+
+/// File names of the shell's recent documents, newest first.
+#[tauri::command]
+fn recent_names(state: tauri::State<AppState>) -> Vec<String> {
+    state
+        .recents
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|p| p.file_name().and_then(|f| f.to_str()).map(String::from))
+        .collect()
+}
+
+/// Re-open the i-th recent document (the shell holds the real path — the
+/// chrome only ever sees display names).
+#[tauri::command]
+fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usize) {
+    let path = state.recents.lock().unwrap().get(index).cloned();
+    if let Some(path) = path {
+        if path.is_file() {
+            open_path(&app, path);
+        }
     }
 }
 
@@ -222,7 +283,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .register_uri_scheme_protocol(SCHEME, handle_pagetml)
-        .invoke_handler(tauri::generate_handler![set_remote, open_dialog, frontend_ready])
+        .invoke_handler(tauri::generate_handler![
+            set_remote,
+            open_dialog,
+            frontend_ready,
+            recent_names,
+            open_recent
+        ])
         .setup(|app| {
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.

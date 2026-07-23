@@ -15,31 +15,33 @@ async function openContent(page: Page): Promise<Frame> {
 }
 
 test("remote network from content is blocked by default (CSP)", async ({ page, browserName }) => {
-  // WebKit enforces img-src etc. but does NOT stop connect-src traffic: a
-  // no-cors fetch leaves the browser (and resolves) despite the header. CSP
-  // alone is therefore not the network gate on WKWebView — the shell needs a
-  // native blocker (WKContentRuleList) for QE-1431. Expected-fail so an
-  // upstream WebKit fix surfaces as an "unexpected pass".
-  test.fail(browserName === "webkit", "WebKit connect-src does not block the request leaving");
   // The security property is that no request LEAVES the browser — assert via
-  // interception (which also keeps test traffic off the real network), not
-  // just the fetch result.
+  // interception (which also keeps test traffic off the real network). The
+  // fetch's own result cannot discriminate: a CSP block and a route abort
+  // both reject it.
   let left = 0;
   await page.route("https://example.com/**", (route) => {
     left++;
     return route.abort();
   });
   const frame = await openContent(page);
-  const result = await frame.evaluate(async () => {
+  await frame.evaluate(async () => {
     try {
       await fetch("https://example.com/exfiltrate", { mode: "no-cors" });
-      return "allowed";
     } catch {
-      return "blocked";
+      /* rejected on every engine — see the route comment above */
     }
   });
-  expect(result).toBe("blocked");
-  expect(left, "no request may leave the content frame").toBe(0);
+  if (browserName === "webkit") {
+    // Known WebKit gap: connect-src does not stop the request leaving
+    // (img-src is enforced). The shell must close this natively with a
+    // WKContentRuleList (QE-1431). Pinned as a positive assertion so an
+    // upstream WebKit fix fails exactly here — then retire this branch —
+    // while any unrelated WebKit breakage in the flow still fails loudly.
+    expect(left, "WebKit connect-src gap: the request leaves the browser").toBeGreaterThan(0);
+  } else {
+    expect(left, "no request may leave the content frame").toBe(0);
+  }
 });
 
 test("content cannot navigate the top-level app away", async ({ page }) => {

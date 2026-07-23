@@ -51,7 +51,23 @@ export function nativeOpenDialog(): void {
 }
 
 /** Tell the shell whether the current document may load remote resources, so the
- *  pagetml:// CSP header is relaxed/tightened on reload (QE-1431). */
-export function nativeSetRemote(allowed: boolean): void {
-  void tauri()?.core.invoke("set_remote", { allowed });
+ *  pagetml:// CSP header is relaxed/tightened on reload (QE-1431). Await the
+ *  returned promise before reloading the frame, or the reload can be served
+ *  under the previous CSP. */
+export function nativeSetRemote(allowed: boolean): Promise<void> {
+  return (tauri()?.core.invoke("set_remote", { allowed }) ?? Promise.resolve()) as Promise<void>;
+}
+
+/** Recent documents (file names, newest first) known to the shell. */
+export function nativeRecentNames(): Promise<string[]> {
+  const t = tauri();
+  if (!t) return Promise.resolve([]);
+  return t.core.invoke("recent_names").then((v) =>
+    Array.isArray(v) ? v.filter((n): n is string => typeof n === "string") : [],
+  );
+}
+
+/** Ask the shell to re-open its i-th recent document (it holds the path). */
+export function nativeOpenRecent(index: number): void {
+  void tauri()?.core.invoke("open_recent", { index });
 }

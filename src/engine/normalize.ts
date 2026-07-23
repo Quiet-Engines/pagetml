@@ -63,6 +63,20 @@ function isScrollTrap(el: HTMLElement, win: Window, viewportH: number): boolean 
 }
 
 /**
+ * Is `el` inside a scroll container the engine preserves? Scroll-trap shells
+ * are unwrapped (inline `overflow: visible`) before their descendants are
+ * visited, so any ancestor still computing as scrollable is a deliberate
+ * small scroller — its content never enters the column fragmentation context.
+ */
+function inPreservedScroller(el: HTMLElement, root: HTMLElement, win: Window): boolean {
+  for (let a = el.parentElement; a && a !== root; a = a.parentElement) {
+    const overflowY = win.getComputedStyle(a).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") return true;
+  }
+  return false;
+}
+
+/**
  * Normalize the flow's content in place. Idempotent, so it is safe to run on
  * every layout pass:
  *
@@ -91,12 +105,15 @@ export function normalizeContent(root: HTMLElement, win: Window): void {
       el.style.setProperty("right", "auto", "important");
       el.style.setProperty("bottom", "auto", "important");
       el.style.setProperty("left", "auto", "important");
-    } else if (position === "sticky") {
+    } else if (position === "sticky" && !inPreservedScroller(el, root, win)) {
       // Sticky is in-flow, so `static` keeps the element exactly at its flow
       // position and lets it fragment across columns. (Converting to absolute
       // is engine-inconsistent: WebKit resolves an abspos static position in a
       // multicol against the first column, pinning the element to page 0.
       // No inset reset needed — insets don't apply to static boxes.)
+      // Sticky inside a preserved scroller is exempt: that content never
+      // enters the column fragmentation context, and sticky works
+      // consistently there — a small table's pinned header must keep pinning.
       el.style.setProperty("position", "static", "important");
     }
 

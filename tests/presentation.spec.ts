@@ -17,6 +17,11 @@ async function present(page: Page, fixture = "prose"): Promise<void> {
   await expect(page.getByTestId("counter")).toHaveText(/^1 \/ \d+$/);
   await page.getByTestId("present").click();
   await expect(page.getByTestId("chip")).toHaveText("Presenting");
+  // The chip reflects the chrome's intent only; the lock command may still be
+  // in flight to the engine (a frame.evaluate can outrun the queued
+  // postMessage). Wait for the engine-confirmed lock, or content injected by
+  // a test lands BEFORE the freeze and is counted into the locked boundaries.
+  await expect(page.getByTestId("reading")).toHaveAttribute("data-engine-locked", "true");
 }
 
 test("enter and exit presentation mode", async ({ page }) => {
