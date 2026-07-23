@@ -157,7 +157,9 @@ class Chrome {
     const recents = getRecents();
     const recentSet = new Set(recents);
     const list = this.root.querySelector(".recent-list")!;
-    for (const name of new Set([...recents, ...SAMPLE_DOCS])) {
+    // The sample fixtures exist only on the dev server; in the shell the list
+    // is recents alone (NOTES.md #4).
+    for (const name of new Set(isNative() ? recents : [...recents, ...SAMPLE_DOCS])) {
       list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
     }
 

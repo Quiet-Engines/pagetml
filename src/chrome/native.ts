@@ -30,11 +30,16 @@ export function isNative(): boolean {
 export function initNativeShell(open: (name: string, url: string) => void): void {
   const t = tauri();
   if (!t) return;
-  void t.event.listen("open-document", (e) => {
-    const url = String(e.payload);
+  const openUrl = (url: string) => {
     // pagetml://localhost/<encoded name> → display name.
     const name = decodeURIComponent(url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
     open(name, url);
+  };
+  void t.event.listen("open-document", (e) => openUrl(String(e.payload)));
+  // A document opened at launch (CLI argument / OS file association) lands
+  // before this listener exists, so the shell keeps it and we pull it here.
+  void t.core.invoke("initial_url").then((url) => {
+    if (typeof url === "string") openUrl(url);
   });
 }
 

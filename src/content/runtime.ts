@@ -88,6 +88,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Served over pagetml:// (SCHEME in src-tauri/src/lib.rs) with this runtime
+  // injected: the surrounding document IS the content — boot directly.
+  if (location.protocol === "pagetml:") {
+    boot(transport);
+    return;
+  }
+
   // No fixture: wait for the chrome to deliver an opened file, then boot.
   const off = transport.onMessage((msg: PagetmlMessage) => {
     if (msg.type !== "loadDocument") return;

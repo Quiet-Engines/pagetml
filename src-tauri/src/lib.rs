@@ -177,6 +177,17 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
     let _ = app.emit("open-document", url);
 }
 
+/// The pagetml:// URL of the document opened before the chrome's JS was running
+/// (CLI argument / OS file association at launch). The chrome pulls this on
+/// startup: an `open-document` event emitted from `setup()` fires before the
+/// page has registered its listener and would be lost.
+#[tauri::command]
+fn initial_url(state: tauri::State<AppState>) -> Option<String> {
+    let doc = state.document.lock().unwrap();
+    let file = doc.as_ref()?.file_name()?.to_str()?;
+    Some(format!("{SCHEME}://localhost/{}", urlencoding::encode(file)))
+}
+
 #[tauri::command]
 fn set_remote(app: tauri::AppHandle, allowed: bool) {
     *app.state::<AppState>().remote_allowed.lock().unwrap() = allowed;
@@ -202,7 +213,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .register_uri_scheme_protocol(SCHEME, handle_pagetml)
-        .invoke_handler(tauri::generate_handler![set_remote, open_dialog])
+        .invoke_handler(tauri::generate_handler![set_remote, open_dialog, initial_url])
         .setup(|app| {
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.
@@ -223,6 +234,21 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running PageTML");
+        .build(tauri::generate_context!())
+        .expect("error while building PageTML")
+        .run(|app, event| {
+            // macOS delivers file-association opens as an app event, not argv
+            // (NOTES.md #5). Runtime opens reach the chrome via `open-document`;
+            // a launch open lands in state before the chrome pulls `initial_url`.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        open_path(app, path);
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
