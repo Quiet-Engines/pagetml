@@ -29,16 +29,30 @@ BAK="${STORE%.json}.json.bak"
 fail() { echo "SMOKE FAIL: $1" >&2; exit 1; }
 pass() { echo "  ok — $1"; }
 
-echo "[1/4] build (runtime bundle + shell binary)"
+DEV_URL="http://localhost:5179/app/index.html"
+
+echo "[1/4] build (runtime bundle + shell binary) and serve the chrome"
 npm run build:runtime >/dev/null
 ( cd src-tauri && cargo build >/dev/null 2>&1 )
 [ -x "$BIN" ] || fail "binary not built at $BIN"
+
+# The debug binary loads the chrome from the dev server (devUrl), so it must be
+# up — otherwise the window never loads and every check below would fail for the
+# wrong reason. Start one if it isn't already running; only tear down our own.
+VITE_PID=""
+if ! curl -sf -o /dev/null "$DEV_URL"; then
+  npx vite --port 5179 >/dev/null 2>&1 &
+  VITE_PID=$!
+  for _ in $(seq 1 60); do curl -sf -o /dev/null "$DEV_URL" && break; sleep 0.25; done
+  curl -sf -o /dev/null "$DEV_URL" || fail "vite dev server did not come up"
+fi
 
 # Preserve any real store, run against a clean slate, restore on exit.
 SAVED=""
 if [ -f "$STORE" ]; then SAVED="$(mktemp)"; cp "$STORE" "$SAVED"; fi
 cleanup() {
   [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null || true
+  [ -n "${VITE_PID:-}" ] && kill "$VITE_PID" 2>/dev/null || true
   rm -f "$STORE" "$BAK"
   [ -n "$SAVED" ] && mv "$SAVED" "$STORE" 2>/dev/null || true
 }
