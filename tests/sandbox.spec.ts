@@ -33,12 +33,15 @@ test("remote network from content is blocked by default (CSP)", async ({ page, b
     }
   });
   if (browserName === "webkit") {
-    // Known WebKit gap: connect-src does not stop the request leaving
-    // (img-src is enforced). The shell must close this natively with a
-    // WKContentRuleList (QE-1431). Pinned as a positive assertion so an
-    // upstream WebKit fix fails exactly here — then retire this branch —
-    // while any unrelated WebKit breakage in the flow still fails loudly.
-    expect(left, "WebKit connect-src gap: the request leaves the browser").toBeGreaterThan(0);
+    // Playwright's bundled WebKit lets the connect-src request leave (img-src
+    // is still enforced). This is a HARNESS artifact, not a product gap: the
+    // shipping app's system WKWebView (via wry) enforces connect-src at the
+    // request level, so the CSP header alone blocks it there — verified
+    // natively against the real webview (QE-1475, canceled as unnecessary; no
+    // native gate needed). Pinned as a positive assertion so an upstream
+    // Playwright-WebKit fix fails exactly here (then retire this branch), while
+    // any unrelated WebKit breakage in the flow still fails loudly.
+    expect(left, "Playwright-WebKit connect-src artifact: the request leaves").toBeGreaterThan(0);
   } else {
     expect(left, "no request may leave the content frame").toBe(0);
   }
