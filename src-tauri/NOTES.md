@@ -12,9 +12,14 @@ found and fixed in that pass:
 - The injected runtime only booted via `?fixture=` or `loadDocument`; on a
   `pagetml://` document it now boots directly (the document IS the content).
 
+The app menu (`install_menu`) is built and verified: File > Open… (⌘O) fires
+the `open` menu event → `pick_and_open` (the same dialog the dropzone uses),
+plus standard App/Edit/Window items. Verified via the Accessibility API
+(menu structure + the Open event reaching the handler).
+
 Still native-unverified: OS file association end-to-end (needs a bundled
-build; the `RunEvent::Opened` handler is in place), menus, and the QE-1431
-follow-up below.
+build; the `RunEvent::Opened` handler is in place) and the QE-1431 follow-up
+below.
 
 **WKWebView CSP finding (QE-1431):** WebKit does not stop `connect-src`
 traffic — a `no-cors` fetch leaves despite the CSP header (see README go/no-go
@@ -70,6 +75,6 @@ dev-only (display-name-keyed, so two files named `report.html` would collide).
 
 - `src/lib.rs` `handle_pagetml` → QE-1429 (`pagetml://` + Rust traversal guard + CSP).
 - `open_path` / `open_dialog` / CLI arg / file association → QE-1428 (native open).
-- `WebviewWindowBuilder` in `setup` + `tauri.conf.json` → QE-1427 (window/menus).
+- `WebviewWindowBuilder` + `install_menu` in `setup` + `tauri.conf.json` → QE-1427 (window/menus).
 - `src/chrome/native.ts` → the frontend side of the bridge (inert in the browser
   build, so the 77 Playwright checks are unaffected).
