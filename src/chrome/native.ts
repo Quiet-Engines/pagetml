@@ -8,6 +8,8 @@
 // the URL directly into its content frame (the runtime is injected server-side
 // by the pagetml:// handler, so no `loadDocument` message is needed).
 
+import type { Anchor } from "../engine/index.js";
+
 interface TauriGlobal {
   event: {
     listen: (event: string, handler: (e: { payload: unknown }) => void) => Promise<() => void>;
@@ -27,7 +29,17 @@ export function isNative(): boolean {
 
 /** Wire the shell's open-document event to `open(name, url)`. No-op in a plain
  *  browser. */
-export function initNativeShell(open: (name: string, url: string, replay: boolean) => void): void {
+/** A document the shell asks the chrome to open, with its stored per-file
+ *  state from the shell's persistent store (QE-1434). */
+export interface NativeDoc {
+  name: string;
+  url: string;
+  replay: boolean;
+  remote: boolean;
+  position?: Anchor;
+}
+
+export function initNativeShell(open: (doc: NativeDoc) => void): void {
   const t = tauri();
   if (!t) return;
   // A document opened at launch (CLI argument / OS file association) is
@@ -36,11 +48,18 @@ export function initNativeShell(open: (name: string, url: string, replay: boolea
   // `replay` so the chrome can ignore a re-delivery of the current document).
   void t.event
     .listen("open-document", (e) => {
-      const p = e.payload as { url?: unknown; replay?: unknown };
+      const p = e.payload as { url?: unknown; replay?: unknown; remote?: unknown; position?: unknown };
       if (typeof p?.url !== "string") return;
-      // pagetml://localhost/<encoded name> → display name.
-      const name = decodeURIComponent(p.url.split("/").pop() ?? "document").replace(/\.html?$/i, "");
-      open(name, p.url, p.replay === true);
+      // Shape-check the stored anchor before trusting it (mirrors loadPosition).
+      const pos = p.position as Anchor | null | undefined;
+      open({
+        // <base>/<encoded name> → display name.
+        name: decodeURIComponent(p.url.split("/").pop() ?? "document").replace(/\.html?$/i, ""),
+        url: p.url,
+        replay: p.replay === true,
+        remote: p.remote === true,
+        position: pos && typeof pos === "object" && Array.isArray(pos.path) ? pos : undefined,
+      });
     })
     .then(() => t.core.invoke("frontend_ready"));
 }
@@ -70,4 +89,10 @@ export function nativeRecentNames(): Promise<string[]> {
 /** Ask the shell to re-open its i-th recent document (it holds the path). */
 export function nativeOpenRecent(index: number): void {
   void tauri()?.core.invoke("open_recent", { index });
+}
+
+/** Persist the reader's position for the current document in the shell's
+ *  store (QE-1434). */
+export function nativeSetPosition(anchor: Anchor): void {
+  void tauri()?.core.invoke("set_position", { anchor });
 }

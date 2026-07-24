@@ -16,7 +16,9 @@ import {
   nativeOpenDialog,
   nativeOpenRecent,
   nativeRecentNames,
+  nativeSetPosition,
   nativeSetRemote,
+  type NativeDoc,
 } from "./native.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
@@ -104,6 +106,9 @@ class Chrome {
   private pendingRestore?: Anchor;
   private wheelAccum = 0;
   private wheelLock = false;
+  /** The current document's "allow remote resources" state — from the shell's
+   *  store for native docs, localStorage in dev (QE-1431). */
+  private remoteOn = false;
   // --- presentation mode (QE-1437..1444) ---
   private presenting = false;
   private blackout: "none" | "black" | "white" = "none";
@@ -128,18 +133,18 @@ class Chrome {
     this.root = root;
     // In the Tauri shell, load documents the OS opens (dialog / file
     // association / CLI). Inert in the browser build.
-    initNativeShell((name, url, replay) => this.openNative(name, url, replay));
+    initNativeShell((doc) => this.openNative(doc));
   }
 
   /** Open a document served natively over pagetml:// (Tauri shell). */
-  private openNative(name: string, url: string, replay: boolean): void {
+  private openNative(doc: NativeDoc): void {
     // Ignore only a frontend_ready replay of the document already showing.
     // A fresh open must always reload, even at the same URL: the URL is built
     // from the basename, so it is shared by different files with the same name
     // — and re-opening the current file (to pick up an external edit) is
     // legitimate too.
-    if (replay && url === this.currentPagetmlUrl) return;
-    this.startReading(name, undefined, url);
+    if (doc.replay && doc.url === this.currentPagetmlUrl) return;
+    this.startReading(doc.name, undefined, doc.url, doc);
   }
 
   // --- start screen ---------------------------------------------------------
@@ -245,12 +250,21 @@ class Chrome {
     this.startReading(name, html);
   }
 
-  private startReading(name: string, html: string | undefined, pagetmlUrl?: string): void {
+  private startReading(
+    name: string,
+    html: string | undefined,
+    pagetmlUrl?: string,
+    native?: { remote: boolean; position?: Anchor },
+  ): void {
     this.teardownReading(); // leak-safe regardless of caller
     this.currentFixture = name;
     this.currentHtml = html;
     this.currentPagetmlUrl = pagetmlUrl;
-    this.pendingRestore = loadPosition(name) ?? undefined;
+    // Native documents carry their per-file state from the shell's store,
+    // keyed by real path; the chrome's localStorage (display-name-keyed, so
+    // two files named report.html would collide) is dev-only.
+    this.remoteOn = native ? native.remote : isRemoteAllowed(name);
+    this.pendingRestore = native ? native.position : (loadPosition(name) ?? undefined);
     this.state = { pageCount: 1, currentPage: 0, locked: false, overflow: false };
 
     // Static shell only — no interpolation of untrusted values into innerHTML.
@@ -296,13 +310,8 @@ class Chrome {
     q("[data-testid=present]").addEventListener("click", () => this.enterPresentation());
 
     const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
-    this.renderRemoteToggle(toggle, isRemoteAllowed(name));
+    this.renderRemoteToggle(toggle, this.remoteOn);
     toggle.addEventListener("click", () => void this.toggleRemote(toggle));
-
-    // Push this file's stored "allow remote" preference to the shell before
-    // the frame requests its pagetml:// URL — the shell resets to default-deny
-    // on every open, so without this the toggle UI and the served CSP disagree.
-    if (pagetmlUrl) nativeSetRemote(isRemoteAllowed(name));
 
     this.frame = this.buildFrame();
     q("[data-testid=stage]").appendChild(this.frame);
@@ -320,7 +329,7 @@ class Chrome {
     if (this.currentPagetmlUrl) return this.currentPagetmlUrl;
     const params = new URLSearchParams();
     if (this.currentHtml === undefined && this.currentFixture) params.set("fixture", this.currentFixture);
-    if (this.currentFixture && isRemoteAllowed(this.currentFixture)) params.set("remote", "1");
+    if (this.remoteOn) params.set("remote", "1");
     const qs = params.toString();
     return `/app/content.html${qs ? `?${qs}` : ""}`;
   }
@@ -372,12 +381,16 @@ class Chrome {
   private async toggleRemote(btn: HTMLButtonElement): Promise<void> {
     const fixture = this.currentFixture;
     if (!fixture || !this.frame) return;
-    setRemoteAllowed(fixture, !isRemoteAllowed(fixture));
-    this.renderRemoteToggle(btn, isRemoteAllowed(fixture));
-    // Native docs: the CSP is a pagetml:// response header, so tell the shell —
-    // and wait for it to land, or the reload below races the flag update and
-    // can be served under the stale CSP.
-    if (this.currentPagetmlUrl) await nativeSetRemote(isRemoteAllowed(fixture));
+    this.remoteOn = !this.remoteOn;
+    this.renderRemoteToggle(btn, this.remoteOn);
+    if (this.currentPagetmlUrl) {
+      // Native docs: the shell owns the per-file preference and the CSP is a
+      // pagetml:// response header — wait for the flag to land, or the reload
+      // below races it and can be served under the stale CSP.
+      await nativeSetRemote(this.remoteOn);
+    } else {
+      setRemoteAllowed(fixture, this.remoteOn); // dev persistence
+    }
 
     // Reload the same iframe under the new CSP; drop the old transport first.
     // The load handler re-wires and (for opened files) re-sends the document.
@@ -414,8 +427,12 @@ class Chrome {
         this.send({ name: "restoreAnchor", anchor });
       }
     } else if (msg.type === "anchor") {
-      // Persist the reader's position per file (spec §3.2, QE-1434).
-      if (this.currentFixture && msg.anchor) savePosition(this.currentFixture, msg.anchor);
+      // Persist the reader's position per file (spec §3.2, QE-1434) — in the
+      // shell's path-keyed store for native docs, localStorage in dev.
+      if (msg.anchor) {
+        if (this.currentPagetmlUrl) nativeSetPosition(msg.anchor);
+        else if (this.currentFixture) savePosition(this.currentFixture, msg.anchor);
+      }
     } else if (msg.type === "openExternal") {
       // External links never open inside PageTML. In the real app the Tauri shell
       // hands this to the OS default browser; in the browser build we open a new

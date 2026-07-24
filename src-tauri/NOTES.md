@@ -37,11 +37,13 @@ use `cargo tauri dev` instead.
 
 1. **Icons** — generated into `src-tauri/icons/` from the brand mark
    (`public/brand/mark.svg` on the logo branch) via `npm run tauri icon`.
-2. **Content runtime resource** — `npm run build:runtime` output verified
-   self-contained; in dev, tauri-build copies it to `target/debug/resources/`,
-   where `resolve(..., BaseDirectory::Resource)` finds it. After editing
-   runtime sources, re-run `build:runtime` and re-copy (or touch a Rust file to
-   trigger the dev rebuild) — the dev copy does not auto-sync.
+2. **Content runtime** — `npm run build:runtime` writes the self-contained
+   bundle to `resources/content-runtime.js`, which lib.rs embeds via
+   `include_bytes!` (build.rs rebuilds on change). Embedding avoids the
+   dev-vs-release resource-dir mismatch — `resolve(Resource)` pointed at
+   `target/debug/` in dev but the bundle config nested it under `resources/`,
+   so it was never found. After editing runtime sources, re-run
+   `build:runtime`; cargo picks it up on the next build.
 3. **Frontend build layout** — `dist/app/index.html` confirmed.
 4. **Start-screen sample docs** — gated behind `!isNative()`.
 5. **macOS "Open" event** — `RunEvent::Opened` handled in `run()` (bundled-app
@@ -50,14 +52,17 @@ use `cargo tauri dev` instead.
 
 ## Remaining TODO
 
-- **Persist recents and positions in the Tauri store (QE-1434).** Recents now
-  live in shell state (`AppState.recents`, real paths, `recent_names` /
-  `open_recent` commands) but are session-only.
-
-- **Per-file remote toggle.** `set_remote` stores a single flag in app state;
-  the chrome calls it before reloading a native document so the `pagetml://` CSP
-  header relaxes to `https:`. For multiple documents, key it per document.
 - **`WKContentRuleList` network gate** (see CSP finding above).
+
+## Persistent store (QE-1434)
+
+`store.json` in the app-data dir, owned by the shell: remembered documents
+(newest first, current always at the front, capped at 10), each with its real
+path, per-file "allow remote" flag, and last read position (the engine's
+content anchor, stored opaquely). Written through on every mutation. The
+`open-document` event carries `remote` + `position`, so the chrome renders the
+toggle and restores the position without touching localStorage — which is
+dev-only (display-name-keyed, so two files named `report.html` would collide).
 
 ## What maps to what
 
