@@ -9,6 +9,12 @@ import type { Anchor } from "./types.js";
 import { measureInFlow, pageAtX } from "./measure.js";
 import { isReplacedElement } from "./dom.js";
 
+/** Validate an anchor's shape before trusting it from an untrusted source
+ *  (persisted store, localStorage, IPC). Guards against tampered/corrupt data. */
+export function isAnchor(v: unknown): v is Anchor {
+  return !!v && typeof v === "object" && Array.isArray((v as Anchor).path);
+}
+
 /** Build a child-index path from `root` down to `el`. */
 export function pathToElement(el: Element, root: Element): number[] {
   const path: number[] = [];

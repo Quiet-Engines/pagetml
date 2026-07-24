@@ -23,18 +23,78 @@ use tauri_plugin_dialog::DialogExt;
 const SCHEME: &str = "pagetml";
 const RUNTIME_PATH: &str = "__pagetml__/runtime.js";
 
+/// The content runtime, embedded at compile time (`npm run build:runtime`
+/// regenerates it; build.rs triggers a rebuild on change). Embedding rather
+/// than resolving a bundled resource avoids the dev-vs-release resource-dir
+/// mismatch entirely — the bundle is served identically in both.
+const RUNTIME_JS: &[u8] = include_bytes!("../resources/content-runtime.js");
+
+/// One remembered document (QE-1434). `position` is the engine's content
+/// anchor, stored opaquely — its shape belongs to the engine.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct DocEntry {
+    path: PathBuf,
+    #[serde(default)]
+    remote: bool,
+    #[serde(default)]
+    position: Option<serde_json::Value>,
+}
+
 /// Per-app state: the directory of the currently open document (the pagetml://
-/// sandbox root), its pagetml:// URL, and its per-file "allow remote
-/// resources" flag (QE-1431).
+/// sandbox root), its pagetml:// URL, and the remembered-documents list.
 #[derive(Default)]
 struct AppState {
     base_dir: Mutex<Option<PathBuf>>,
     document_url: Mutex<Option<String>>,
-    remote_allowed: Mutex<bool>,
-    /// Recently opened documents, newest first. Session-only; the persistent
-    /// store is QE-1434. The shell owns this (not the chrome's localStorage)
-    /// because re-opening needs the real path.
-    recents: Mutex<Vec<PathBuf>>,
+    /// Remembered documents, newest first; the current document is always the
+    /// front entry (open_path maintains this), so its per-file "allow remote"
+    /// flag and position live there — no separate mirror. Persisted to
+    /// `store_path` on every mutation. The shell owns this — not the chrome's
+    /// localStorage — because re-opening and per-file state need the real path.
+    entries: Mutex<Vec<DocEntry>>,
+    store_path: Mutex<Option<PathBuf>>,
+    /// Serializes disk saves so overlapping flushes can't interleave the temp
+    /// file or land out of order (set_position fires per page turn, fire-and-
+    /// forget, and Tauri runs commands on a thread pool).
+    save_lock: Mutex<()>,
+}
+
+fn load_entries(path: &Path) -> Vec<DocEntry> {
+    let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
+    match serde_json::from_slice(&bytes) {
+        Ok(entries) => entries,
+        // A non-empty file that won't parse is corrupt or from a newer schema.
+        // Don't silently return default — the next mutation would overwrite it
+        // and lose every remembered document. Preserve it for recovery first.
+        Err(_) => {
+            if !bytes.is_empty() {
+                let _ = std::fs::rename(path, path.with_extension("json.bak"));
+            }
+            Vec::new()
+        }
+    }
+}
+
+fn save_entries(state: &AppState) {
+    let Some(path) = state.store_path.lock().unwrap().clone() else { return };
+    // Hold the save lock across snapshot + write + rename so concurrent saves
+    // are fully serialized (see save_lock).
+    let _saving = state.save_lock.lock().unwrap();
+    let json = match serde_json::to_vec_pretty(&*state.entries.lock().unwrap()) {
+        Ok(j) => j,
+        Err(_) => return,
+    };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    // Atomic write: a position flush fires on every page turn, so an
+    // interrupted plain write would corrupt the store and load_entries would
+    // reset it. Write a temp then rename (atomic on the same fs), so a crash
+    // always leaves the previous good store intact.
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, &json).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
 }
 
 /// The webview-facing base URL for the custom scheme. macOS/Linux navigate
@@ -136,20 +196,15 @@ fn handle_pagetml<R: tauri::Runtime>(
     // place `content-runtime.js` in the app's resource dir).
     let raw_path = request.uri().path().trim_start_matches('/');
     if raw_path == RUNTIME_PATH {
-        return match app
-            .path()
-            .resolve("content-runtime.js", tauri::path::BaseDirectory::Resource)
-            .and_then(|p| std::fs::read(p).map_err(Into::into))
-        {
-            Ok(bytes) => response(StatusCode::OK, "text/javascript", bytes),
-            Err(_) => error(StatusCode::NOT_FOUND, "runtime bundle missing (see NOTES.md)"),
-        };
+        return response(StatusCode::OK, "text/javascript", RUNTIME_JS.to_vec());
     }
 
     let Some(base) = state.base_dir.lock().unwrap().clone() else {
         return error(StatusCode::NOT_FOUND, "no document open");
     };
-    let allow_remote = *state.remote_allowed.lock().unwrap();
+    // The current document is always entries[0], so its remote flag is the
+    // single source of truth for the served CSP.
+    let allow_remote = state.entries.lock().unwrap().first().is_some_and(|e| e.remote);
 
     let decoded = urlencoding::decode(raw_path).unwrap_or_default().into_owned();
     let requested = base.join(&decoded);
@@ -198,26 +253,44 @@ fn handle_pagetml<R: tauri::Runtime>(
 
 /// Point the sandbox at `path`, then tell the chrome which pagetml:// URL to load.
 fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
+    // Canonicalize so the store keys documents by a single stable identity —
+    // the same file reached via a relative CLI arg, a Finder absolute URL, a
+    // symlink, or a case-variant on APFS must be one entry, not several (and
+    // must find its saved position/remote flag). Matches the traversal guard,
+    // which also canonicalizes. Falls back to the raw path if the file is gone.
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
     let Some(dir) = path.parent().map(Path::to_path_buf) else { return };
     let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_string();
 
     let state = app.state::<AppState>();
     *state.base_dir.lock().unwrap() = Some(dir);
-    // Every open starts default-deny; the chrome pushes the file's stored
-    // "allow remote" preference via set_remote when it loads the document
-    // (QE-1431 — without this, the previous document's relaxed CSP would leak).
-    *state.remote_allowed.lock().unwrap() = false;
-    {
-        let mut recents = state.recents.lock().unwrap();
-        recents.retain(|p| p != &path);
-        recents.insert(0, path.clone());
-        recents.truncate(10);
-    }
+
+    // Move (or insert) this document at the front of the remembered list,
+    // keeping its stored per-file state (QE-1434).
+    let entry = {
+        let mut entries = state.entries.lock().unwrap();
+        let entry = match entries.iter().position(|e| e.path == path) {
+            Some(i) => entries.remove(i),
+            None => DocEntry { path: path.clone(), remote: false, position: None },
+        };
+        entries.insert(0, entry.clone());
+        entries.truncate(10);
+        entry
+    };
+    save_entries(&state);
 
     let url = format!("{}/{}", scheme_base(), urlencoding::encode(&file));
     *state.document_url.lock().unwrap() = Some(url.clone());
     // The chrome listens for this and loads `url` into its content frame.
-    let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": false }));
+    let _ = app.emit(
+        "open-document",
+        serde_json::json!({
+            "url": url,
+            "replay": false,
+            "remote": entry.remote,
+            "position": entry.position,
+        }),
+    );
 }
 
 /// Called by the chrome once its `open-document` listener is registered. A
@@ -227,10 +300,20 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
 #[tauri::command]
 fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
     if let Some(url) = state.document_url.lock().unwrap().clone() {
+        let (remote, position) = state
+            .entries
+            .lock()
+            .unwrap()
+            .first()
+            .map(|e| (e.remote, e.position.clone()))
+            .unwrap_or((false, None));
         // `replay` lets the chrome ignore a re-delivery of the document it
         // already shows without suppressing genuine re-opens (which share the
         // URL: it is built from the basename).
-        let _ = app.emit("open-document", serde_json::json!({ "url": url, "replay": true }));
+        let _ = app.emit(
+            "open-document",
+            serde_json::json!({ "url": url, "replay": true, "remote": remote, "position": position }),
+        );
     }
 }
 
@@ -238,11 +321,11 @@ fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
 #[tauri::command]
 fn recent_names(state: tauri::State<AppState>) -> Vec<String> {
     state
-        .recents
+        .entries
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|p| p.file_name().and_then(|f| f.to_str()).map(String::from))
+        .filter_map(|e| e.path.file_name().and_then(|f| f.to_str()).map(String::from))
         .collect()
 }
 
@@ -250,7 +333,7 @@ fn recent_names(state: tauri::State<AppState>) -> Vec<String> {
 /// chrome only ever sees display names).
 #[tauri::command]
 fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usize) {
-    let path = state.recents.lock().unwrap().get(index).cloned();
+    let path = state.entries.lock().unwrap().get(index).map(|e| e.path.clone());
     if let Some(path) = path {
         if path.is_file() {
             open_path(&app, path);
@@ -260,7 +343,22 @@ fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usiz
 
 #[tauri::command]
 fn set_remote(app: tauri::AppHandle, allowed: bool) {
-    *app.state::<AppState>().remote_allowed.lock().unwrap() = allowed;
+    let state = app.state::<AppState>();
+    if let Some(e) = state.entries.lock().unwrap().first_mut() {
+        e.remote = allowed;
+    }
+    save_entries(&state);
+}
+
+/// Persist the reader's position (a content anchor, opaque to the shell) for
+/// the current document (QE-1434).
+#[tauri::command]
+fn set_position(app: tauri::AppHandle, anchor: serde_json::Value) {
+    let state = app.state::<AppState>();
+    if let Some(e) = state.entries.lock().unwrap().first_mut() {
+        e.position = Some(anchor);
+    }
+    save_entries(&state);
 }
 
 #[tauri::command]
@@ -285,12 +383,22 @@ pub fn run() {
         .register_uri_scheme_protocol(SCHEME, handle_pagetml)
         .invoke_handler(tauri::generate_handler![
             set_remote,
+            set_position,
             open_dialog,
             frontend_ready,
             recent_names,
             open_recent
         ])
         .setup(|app| {
+            // Load the remembered-documents store (QE-1434) before anything can
+            // open a document — the CLI-arg open below reads and updates it.
+            if let Ok(dir) = app.path().app_data_dir() {
+                let store = dir.join("store.json");
+                let state = app.state::<AppState>();
+                *state.entries.lock().unwrap() = load_entries(&store);
+                *state.store_path.lock().unwrap() = Some(store);
+            }
+
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("app/index.html".into()))
