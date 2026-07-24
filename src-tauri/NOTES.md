@@ -50,6 +50,10 @@ use `cargo tauri dev` instead.
 
 ## Remaining TODO
 
+- **Persist recents and positions in the Tauri store (QE-1434).** Recents now
+  live in shell state (`AppState.recents`, real paths, `recent_names` /
+  `open_recent` commands) but are session-only.
+
 - **Per-file remote toggle.** `set_remote` stores a single flag in app state;
   the chrome calls it before reloading a native document so the `pagetml://` CSP
   header relaxes to `https:`. For multiple documents, key it per document.

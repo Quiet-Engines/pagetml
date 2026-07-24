@@ -38,6 +38,23 @@ test("mid-document sticky keeps its page instead of pinning to the origin", asyn
   expect(res.stickyPage).toBeGreaterThan(0);
 });
 
+test("sticky inside a preserved scroller keeps pinning", async ({ page }) => {
+  await loadFixture(page, "prose", 800, 600);
+  const res = await page.evaluate(() => {
+    const h = window.__pagetml;
+    h.injectStickyScroller();
+    return {
+      overflow: h.computedStyle("#small-scroller", "overflow-y"),
+      position: h.computedStyle("#scroller-sticky", "position"),
+    };
+  });
+  // The small scroller is below the trap threshold, so it is preserved...
+  expect(res.overflow).toBe("auto");
+  // ...and its sticky header must NOT be flattened — sticky works in a live
+  // scroller; only sticky in the paginated flow is normalized.
+  expect(res.position).toBe("sticky");
+});
+
 test("script-injected scroll trap is normalized on reflow, not just at setup", async ({ page }) => {
   await loadFixture(page, "prose", 800, 600);
   const res = await page.evaluate(() => {

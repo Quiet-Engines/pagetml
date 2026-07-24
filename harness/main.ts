@@ -165,6 +165,30 @@ class PagetmlHarness {
     this.engine.reflowNow();
   }
 
+  /** Inject a small preserved scroller (below the scroll-trap threshold) with a
+   *  sticky header, then repaginate — sticky inside a live scroller must keep
+   *  pinning; only sticky in the paginated flow is normalized (QE-1421). */
+  injectStickyScroller(): void {
+    const doc = this.iframe.contentDocument!;
+    const box = doc.createElement("div");
+    box.id = "small-scroller";
+    box.style.height = "150px";
+    box.style.overflow = "auto";
+    const head = doc.createElement("div");
+    head.id = "scroller-sticky";
+    head.textContent = "sticky header";
+    head.style.position = "sticky";
+    head.style.top = "0";
+    box.appendChild(head);
+    for (let i = 0; i < 20; i++) {
+      const p = doc.createElement("p");
+      p.textContent = `Scroller row ${i}`;
+      box.appendChild(p);
+    }
+    this.flow.appendChild(box);
+    this.engine.reflowNow();
+  }
+
   /** Inject a "playing" media element, turn the page away from it, and report
    *  whether the engine paused it (QE-1443). A real <video> reports paused=true
    *  and needs a network source to play, so we simulate a playing element. */

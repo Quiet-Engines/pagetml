@@ -10,7 +10,14 @@
 import { createTransport } from "../engine/index.js";
 import type { Anchor, PageState, PagetmlMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
-import { initNativeShell, isNative, nativeOpenDialog, nativeSetRemote } from "./native.js";
+import {
+  initNativeShell,
+  isNative,
+  nativeOpenDialog,
+  nativeOpenRecent,
+  nativeRecentNames,
+  nativeSetRemote,
+} from "./native.js";
 
 // In the real app these come from the OS (recent files + file open). In dev the
 // fixture corpus stands in for "documents on disk".
@@ -160,13 +167,23 @@ class Chrome {
     // Document names are user-controlled (filenames), so build each button via
     // the DOM — textContent / dataset never interpret markup — rather than
     // interpolating names into an innerHTML string.
-    const recents = getRecents();
-    const recentSet = new Set(recents);
     const list = this.root.querySelector(".recent-list")!;
-    // The sample fixtures exist only on the dev server; in the shell the list
-    // is recents alone (already unique — dedup only the merged list).
-    for (const name of isNative() ? recents : [...new Set([...recents, ...SAMPLE_DOCS])]) {
-      list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
+    if (isNative()) {
+      // The shell owns recents in native — it holds the real paths, so opening
+      // goes back through it (session-only until the Tauri store, QE-1434).
+      void nativeRecentNames().then((files) => {
+        files.forEach((file, i) => {
+          const name = file.replace(/\.html?$/i, "");
+          list.appendChild(this.docButton(name, "recent", () => nativeOpenRecent(i)));
+        });
+      });
+    } else {
+      // The sample fixtures exist only on the dev server.
+      const recents = getRecents();
+      const recentSet = new Set(recents);
+      for (const name of new Set([...recents, ...SAMPLE_DOCS])) {
+        list.appendChild(this.docButton(name, recentSet.has(name) ? "recent" : "sample"));
+      }
     }
 
     // Drag-and-drop and file-picker open paths (QE-1428). OS file association
@@ -198,7 +215,7 @@ class Chrome {
     this.openHtml(file.name.replace(/\.html?$/i, ""), html);
   }
 
-  private docButton(name: string, meta: string): HTMLButtonElement {
+  private docButton(name: string, meta: string, onOpen?: () => void): HTMLButtonElement {
     const span = (cls: string, text: string) => {
       const s = document.createElement("span");
       s.className = cls;
@@ -209,7 +226,7 @@ class Chrome {
     btn.className = "recent";
     btn.dataset.doc = name;
     btn.append(span("glyph", "▤"), span("name", `${name}.html`), span("meta", meta));
-    btn.addEventListener("click", () => this.open(name));
+    btn.addEventListener("click", onOpen ?? (() => this.open(name)));
     return btn;
   }
 
@@ -280,7 +297,7 @@ class Chrome {
 
     const toggle = q<HTMLButtonElement>("[data-testid=remote-toggle]");
     this.renderRemoteToggle(toggle, isRemoteAllowed(name));
-    toggle.addEventListener("click", () => this.toggleRemote(toggle));
+    toggle.addEventListener("click", () => void this.toggleRemote(toggle));
 
     // Push this file's stored "allow remote" preference to the shell before
     // the frame requests its pagetml:// URL — the shell resets to default-deny
@@ -330,6 +347,10 @@ class Chrome {
       if (this.currentHtml !== undefined) {
         this.transport.send({ type: "loadDocument", html: this.currentHtml });
       }
+      // A natively served document's runtime is already evaluated and waiting
+      // for this before it boots (its initial messages would predate the
+      // listener wired above). Harmless on the other paths.
+      this.transport.send({ type: "ready" });
     });
 
     // src set before insertion => exactly one load event across engines (an
@@ -348,13 +369,15 @@ class Chrome {
 
   /** Flip the per-file remote-resources setting and reload the frame under the
    *  new CSP. Reloads the same iframe element, so drop the old transport first. */
-  private toggleRemote(btn: HTMLButtonElement): void {
+  private async toggleRemote(btn: HTMLButtonElement): Promise<void> {
     const fixture = this.currentFixture;
     if (!fixture || !this.frame) return;
     setRemoteAllowed(fixture, !isRemoteAllowed(fixture));
     this.renderRemoteToggle(btn, isRemoteAllowed(fixture));
-    // Native docs: the CSP is a pagetml:// response header, so tell the shell.
-    if (this.currentPagetmlUrl) nativeSetRemote(isRemoteAllowed(fixture));
+    // Native docs: the CSP is a pagetml:// response header, so tell the shell —
+    // and wait for it to land, or the reload below races the flag update and
+    // can be served under the stale CSP.
+    if (this.currentPagetmlUrl) await nativeSetRemote(isRemoteAllowed(fixture));
 
     // Reload the same iframe under the new CSP; drop the old transport first.
     // The load handler re-wires and (for opened files) re-sends the document.
@@ -416,6 +439,10 @@ class Chrome {
   private updateStatus(): void {
     if (!this.els) return;
     const { currentPage, pageCount, overflow } = this.state;
+    // The engine-confirmed lock state (the chip only reflects the chrome's
+    // intent — the lock command may still be in flight). Tests and tooling
+    // wait on this instead of a clock.
+    this.els.reading.dataset.engineLocked = String(this.state.locked);
     this.els.counter.textContent = `${currentPage + 1} / ${pageCount}`;
     this.els.prev.disabled = currentPage <= 0;
     this.els.next.disabled = currentPage >= pageCount - 1;
