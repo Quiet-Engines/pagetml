@@ -59,9 +59,20 @@ tests/           Playwright specs: invariants, anchors, metrics
 ```bash
 npm install
 npm run typecheck
-npm test                 # both engines (needs Chromium + WebKit installed)
+npm test                 # engine invariants, both engines (needs Chromium + WebKit)
 npm run test:chromium    # Chromium only
 npm run test:webkit      # WebKit only
+```
+
+The Tauri shell (`src-tauri/`) has its own two-layer coverage, since the
+Playwright engine suite never loads the native shell:
+
+```bash
+npm run test:shell       # headless Rust unit tests (cargo test): traversal
+                         # guard, store durability/identity, injection contract
+npm run test:native      # driven smoke: builds and runs the real binary, asserts
+                         # a document actually boots the runtime and paginates
+                         # (needs a desktop/display; uses the store as the oracle)
 ```
 
 The invariants asserted for every fixture at multiple window sizes (spec §7):
