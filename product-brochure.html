@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian A7 — Aerial Imaging System · Spec Sheet</title>
+<!--
+  ============================================================================
+  PRODUCT BROCHURE / SPEC SHEET  —  reusable template
+  ----------------------------------------------------------------------------
+  Everything below is placeholder content for a fictional product ("Meridian
+  A7"). To make it yours:
+    1. Search-and-replace the product name, tagline, and body copy.
+    2. Edit the numbers in the <dl class="spec"> blocks — labels are in <dt>,
+       values in <dd>. Add or remove rows freely.
+    3. Swap the accent + neutral colors in the :root token block (top of CSS).
+    4. Replace the inline SVG hero with your own product photo if you have one
+       (drop an <img> in place of the <svg>).
+  Self-contained: no external fonts, scripts, or images. Open in any browser,
+  or print / "Save as PDF" — a dedicated print stylesheet is included.
+  ============================================================================
+-->
+<style>
+  /* ---- Design tokens ---------------------------------------------------- */
+  :root {
+    color-scheme: light dark;
+
+    --paper:      #eceef1;   /* cool slate-tinted page ground              */
+    --surface:    #f8f9fb;   /* raised cards / panels                       */
+    --surface-2:  #e3e6ea;   /* recessed wells                             */
+    --ink:        #14181f;   /* primary text                              */
+    --ink-soft:   #545d6a;   /* secondary text, labels                    */
+    --ink-faint:  #8b94a1;   /* tertiary / captions                       */
+    --line:       #cdd3db;   /* hairlines, borders                        */
+    --line-soft:  #dde1e7;   /* fainter internal rules                    */
+    --accent:     #b3651a;   /* burnt amber — anodized-metal signal color */
+    --accent-ink: #8f4f12;   /* accent on light for AA text               */
+    --steel:      #3a6b8d;   /* secondary data hue                        */
+    --shadow:     0 1px 2px rgba(20,24,31,.04), 0 8px 28px -18px rgba(20,24,31,.28);
+
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Roboto Mono", Menlo, monospace;
+
+    --maxw: 1120px;
+    --pad: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #0d1015;
+      --surface:    #151a21;
+      --surface-2:  #1c222b;
+      --ink:        #e8ebef;
+      --ink-soft:   #9aa4b2;
+      --ink-faint:  #6b7480;
+      --line:       #262d38;
+      --line-soft:  #1f2530;
+      --accent:     #e59a4d;
+      --accent-ink: #eaa860;
+      --steel:      #77a6c9;
+      --shadow:     0 1px 2px rgba(0,0,0,.3), 0 12px 34px -20px rgba(0,0,0,.7);
+    }
+  }
+  /* Explicit toggle overrides (viewer's theme switch wins in both directions) */
+  :root[data-theme="light"] {
+    --paper:#eceef1; --surface:#f8f9fb; --surface-2:#e3e6ea; --ink:#14181f;
+    --ink-soft:#545d6a; --ink-faint:#8b94a1; --line:#cdd3db; --line-soft:#dde1e7;
+    --accent:#b3651a; --accent-ink:#8f4f12; --steel:#3a6b8d;
+    --shadow:0 1px 2px rgba(20,24,31,.04), 0 8px 28px -18px rgba(20,24,31,.28);
+  }
+  :root[data-theme="dark"] {
+    --paper:#0d1015; --surface:#151a21; --surface-2:#1c222b; --ink:#e8ebef;
+    --ink-soft:#9aa4b2; --ink-faint:#6b7480; --line:#262d38; --line-soft:#1f2530;
+    --accent:#e59a4d; --accent-ink:#eaa860; --steel:#77a6c9;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 34px -20px rgba(0,0,0,.7);
+  }
+
+  /* ---- Reset / base ----------------------------------------------------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.05; }
+  p { margin: 0; }
+  a { color: var(--accent-ink); text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: var(--pad); }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0;
+  }
+  .eyebrow.muted { color: var(--ink-faint); }
+
+  /* ---- Top bar ---------------------------------------------------------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; height: 60px;
+  }
+  .brand { display: flex; align-items: baseline; gap: .55rem; }
+  .brand .mark {
+    font-weight: 800; letter-spacing: -.02em; font-size: 1.05rem;
+  }
+  .brand .sub {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .topnav { display: flex; gap: 1.6rem; align-items: center; }
+  .topnav a {
+    color: var(--ink-soft); text-decoration: none; font-size: .84rem;
+    letter-spacing: .02em;
+  }
+  .topnav a:hover { color: var(--ink); }
+  @media (max-width: 720px) { .topnav .navlink { display: none; } }
+
+  .btn {
+    font-family: var(--sans); font-size: .84rem; font-weight: 600;
+    letter-spacing: .01em; text-decoration: none;
+    padding: .5rem .95rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    transition: transform .12s ease, filter .12s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn.ghost {
+    background: transparent; color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn.ghost:hover { border-color: var(--ink-soft); }
+
+  /* ---- Hero ------------------------------------------------------------- */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .hero::before {
+    /* faint blueprint grid */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 78%);
+            mask-image: radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 78%);
+    opacity: .6;
+  }
+  .hero .wrap {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: center;
+    padding-block: clamp(2.5rem, 6vw, 5rem);
+  }
+  @media (max-width: 860px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .hero-art { order: -1; }
+  }
+  .hero-copy { display: flex; flex-direction: column; gap: 1.25rem; align-items: flex-start; }
+  .hero h1 {
+    font-size: clamp(2.6rem, 7vw, 4.75rem);
+    font-weight: 800; letter-spacing: -.03em; line-height: .92;
+  }
+  .hero h1 .model { color: var(--ink-faint); font-weight: 700; }
+  .hero .lede {
+    color: var(--ink-soft); max-width: 46ch; font-size: 1.075rem;
+  }
+  .hero-cta { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .25rem; }
+
+  .hero-art {
+    aspect-ratio: 1 / 1;
+    display: grid; place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background:
+      radial-gradient(90% 90% at 50% 40%, var(--surface) 0%, var(--surface-2) 100%);
+    box-shadow: var(--shadow);
+  }
+  .hero-art svg { width: 92%; height: 92%; display: block; }
+
+  /* Schematic colors — CSS-driven so they follow the theme */
+  .bp-label     { font-family: var(--mono); }
+  .bp-frame     { stroke: var(--line); }
+  .bp-dim       { stroke: var(--ink-faint); opacity: .7; }
+  .bp-dim-label { fill: var(--accent); }
+  .bp-arm       { stroke: var(--ink-soft); }
+  .bp-rotor     { stroke: var(--steel); }
+  .bp-hub       { fill: var(--ink-soft); }
+  .bp-body      { fill: var(--surface-2); stroke: var(--ink-soft); }
+  .bp-body-label{ fill: var(--ink-faint); }
+  .bp-cam-ring  { fill: var(--paper); stroke: var(--accent); }
+  .bp-cam-dot   { fill: var(--accent); }
+  .bp-cross     { stroke: var(--ink-faint); opacity: .6; }
+
+  /* ---- Stat band -------------------------------------------------------- */
+  .stats {
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .stats .grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+  }
+  @media (max-width: 720px) { .stats .grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    padding: 1.5rem var(--pad);
+    border-left: 1px solid var(--line-soft);
+    display: flex; flex-direction: column; gap: .15rem;
+  }
+  .stat:first-child { border-left: 0; }
+  @media (max-width: 720px) {
+    .stat:nth-child(odd) { border-left: 0; }
+    .stat:nth-child(n+3) { border-top: 1px solid var(--line-soft); }
+  }
+  .stat .num {
+    font-family: var(--mono); font-weight: 600;
+    font-size: clamp(1.7rem, 3.4vw, 2.35rem);
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .stat .num small { font-size: .5em; color: var(--ink-faint); font-weight: 500; margin-left: .25em; }
+  .stat .cap {
+    font-size: .74rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ---- Generic section -------------------------------------------------- */
+  section { padding-block: clamp(3rem, 7vw, 5.5rem); }
+  .sec-head { display: flex; flex-direction: column; gap: .6rem; margin-bottom: 2.5rem; max-width: 60ch; }
+  .sec-head h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 750; letter-spacing: -.02em; }
+  .sec-head p { color: var(--ink-soft); }
+
+  /* ---- Feature cards ---------------------------------------------------- */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+  @media (max-width: 820px) { .features { grid-template-columns: 1fr; } }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.75rem 1.6rem;
+    display: flex; flex-direction: column; gap: .85rem;
+    box-shadow: var(--shadow);
+  }
+  .feature .ico {
+    width: 40px; height: 40px; color: var(--accent);
+    display: grid; place-items: center;
+  }
+  .feature h3 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em; }
+  .feature p { color: var(--ink-soft); font-size: .96rem; }
+  .feature .tag {
+    margin-top: auto; font-family: var(--mono); font-size: .72rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--steel);
+  }
+
+  /* ---- Specifications --------------------------------------------------- */
+  #specs { background: var(--surface); border-block: 1px solid var(--line); }
+  .spec-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: clamp(1.5rem, 3vw, 2.75rem) clamp(2rem, 5vw, 4rem);
+  }
+  @media (max-width: 820px) { .spec-grid { grid-template-columns: 1fr; } }
+  .spec-group { break-inside: avoid; }
+  .spec-group > .glabel {
+    display: flex; align-items: baseline; gap: .75rem;
+    padding-bottom: .6rem; margin-bottom: .4rem;
+    border-bottom: 2px solid var(--ink);
+  }
+  .spec-group > .glabel .n {
+    font-family: var(--mono); font-size: .72rem; color: var(--accent-ink);
+    letter-spacing: .1em;
+  }
+  .spec-group > .glabel h3 {
+    font-size: 1.02rem; font-weight: 700; letter-spacing: .01em;
+    text-transform: uppercase;
+  }
+  dl.spec { margin: 0; }
+  dl.spec > .row {
+    display: grid; grid-template-columns: 1fr auto; gap: 1rem;
+    align-items: baseline;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  dl.spec > .row:last-child { border-bottom: 0; }
+  dl.spec dt { color: var(--ink-soft); font-size: .93rem; }
+  dl.spec dd {
+    margin: 0; text-align: right;
+    font-family: var(--mono); font-size: .9rem;
+    font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  dl.spec dd .u { color: var(--ink-faint); }
+
+  /* ---- In the box ------------------------------------------------------- */
+  .box-list { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .box-list li {
+    list-style: none;
+    font-family: var(--mono); font-size: .82rem;
+    padding: .45rem .85rem; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--surface);
+    color: var(--ink-soft);
+  }
+  .box-list { padding: 0; margin: 0; }
+
+  /* ---- CTA strip -------------------------------------------------------- */
+  .cta-strip .panel {
+    border: 1px solid var(--line); border-radius: 12px;
+    background:
+      radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 55%),
+      var(--surface);
+    padding: clamp(2rem, 5vw, 3.5rem);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 2rem; flex-wrap: wrap;
+    box-shadow: var(--shadow);
+  }
+  .cta-strip h2 { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 750; letter-spacing: -.02em; }
+  .cta-strip p { color: var(--ink-soft); margin-top: .5rem; max-width: 42ch; }
+
+  /* ---- Footer ----------------------------------------------------------- */
+  footer { border-top: 1px solid var(--line); }
+  footer .wrap {
+    display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    padding-block: 2rem; color: var(--ink-faint); font-size: .82rem;
+  }
+  footer .fnote { max-width: 60ch; }
+  footer .brand .mark { color: var(--ink); }
+
+  /* ---- Motion ----------------------------------------------------------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .rotor { animation: spin 3.2s linear infinite; transform-box: fill-box; transform-origin: center; }
+    .rotor.b { animation-duration: 2.6s; animation-direction: reverse; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  }
+
+  /* ---- Print ------------------------------------------------------------ */
+  @media print {
+    :root {
+      --paper:#fff; --surface:#fff; --surface-2:#fff; --ink:#000;
+      --ink-soft:#333; --ink-faint:#555; --line:#bbb; --line-soft:#ddd;
+    }
+    .topbar, .hero-cta, .cta-strip, .btn { display: none !important; }
+    .hero::before, .rotor { animation: none; }
+    body { font-size: 10.5pt; }
+    section { padding-block: 1.2rem; }
+    .feature, .hero-art, .spec-group { box-shadow: none; }
+    a { color: #000; text-decoration: none; }
+    .spec-grid { gap: .8rem 2rem; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand">
+        <span class="mark">MERIDIAN</span>
+        <span class="sub">A7 · Aerial Systems</span>
+      </div>
+      <nav class="topnav" aria-label="Primary">
+        <a class="navlink" href="#features">Overview</a>
+        <a class="navlink" href="#specs">Specifications</a>
+        <a class="navlink" href="#box">In the box</a>
+        <a class="btn ghost" href="#specs">Download spec sheet</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= HERO ================= -->
+  <div class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">Professional Aerial Imaging System</p>
+        <h1>Meridian&nbsp;A7 <span class="model">/&nbsp;the&nbsp;whole&nbsp;sky,<br>in&nbsp;focus.</span></h1>
+        <p class="lede">
+          A folding cinematography drone built around a stabilized one-inch
+          sensor, 46 minutes of flight, and an O4 link that holds a crisp feed
+          to twenty kilometers. Cinema-grade capture in a body that fits a
+          jacket pocket.
+        </p>
+        <div class="hero-cta">
+          <a class="btn" href="#specs">Read the full spec sheet</a>
+          <a class="btn ghost" href="#features">See what's new</a>
+        </div>
+      </div>
+
+      <!-- Inline SVG hero: top-down blueprint schematic. Replace with an <img> of
+           your product if you have a photo. Colors are driven by CSS classes
+           (see .bp-* rules) so the schematic tracks the light/dark theme. -->
+      <div class="hero-art">
+        <svg viewBox="0 0 480 480" role="img" aria-label="Top-down schematic of the Meridian A7 quadcopter">
+          <!-- corner tick frame -->
+          <g class="bp-frame" fill="none" stroke-width="1">
+            <path d="M24 60 V24 H60" /><path d="M420 24 H456 V60" />
+            <path d="M456 420 V456 H420" /><path d="M60 456 H24 V420" />
+          </g>
+
+          <!-- diagonal dimension line + label -->
+          <line class="bp-dim" x1="120" y1="120" x2="360" y2="360" stroke-width="1" stroke-dasharray="2 5"/>
+          <text class="bp-label bp-dim-label" x="252" y="228" font-size="13"
+                transform="rotate(45 252 228)">Ø 380 mm</text>
+
+          <!-- arms -->
+          <g class="bp-arm" fill="none" stroke-width="11" stroke-linecap="round">
+            <line x1="212" y1="212" x2="120" y2="120" />
+            <line x1="268" y1="212" x2="360" y2="120" />
+            <line x1="212" y1="268" x2="120" y2="360" />
+            <line x1="268" y1="268" x2="360" y2="360" />
+          </g>
+
+          <!-- rotors -->
+          <g class="bp-rotor" fill="none" stroke-width="2.5" stroke-dasharray="6 9">
+            <circle class="rotor a" cx="120" cy="120" r="58"/>
+            <circle class="rotor b" cx="360" cy="120" r="58"/>
+            <circle class="rotor b" cx="120" cy="360" r="58"/>
+            <circle class="rotor a" cx="360" cy="360" r="58"/>
+          </g>
+          <g class="bp-hub">
+            <circle cx="120" cy="120" r="9"/><circle cx="360" cy="120" r="9"/>
+            <circle cx="120" cy="360" r="9"/><circle cx="360" cy="360" r="9"/>
+          </g>
+
+          <!-- fuselage -->
+          <rect class="bp-body" x="198" y="182" width="84" height="116" rx="16" stroke-width="2.5"/>
+          <text class="bp-label bp-body-label" x="240" y="214" text-anchor="middle"
+                font-size="12" letter-spacing="3">A7</text>
+
+          <!-- gimbal / camera (accent highlight) -->
+          <circle class="bp-cam-ring" cx="240" cy="302" r="18" stroke-width="3"/>
+          <circle class="bp-cam-dot" cx="240" cy="302" r="7"/>
+
+          <!-- center crosshair -->
+          <g class="bp-cross" stroke-width="1">
+            <line x1="240" y1="150" x2="240" y2="176"/>
+            <line x1="240" y1="256" x2="240" y2="150" stroke-dasharray="2 4"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STAT BAND ================= -->
+  <div class="stats">
+    <div class="grid">
+      <div class="stat"><span class="num">46<small>min</small></span><span class="cap">Max flight</span></div>
+      <div class="stat"><span class="num">20<small>km</small></span><span class="cap">Transmission</span></div>
+      <div class="stat"><span class="num">1″<small>CMOS</small></span><span class="cap">20 MP sensor</span></div>
+      <div class="stat"><span class="num">68<small>km/h</small></span><span class="cap">Top speed</span></div>
+    </div>
+  </div>
+
+  <!-- ================= FEATURES ================= -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow muted">Why the A7</p>
+        <h2>Three reasons it stays in the bag.</h2>
+        <p>Every subsystem was rebuilt around one goal: getting the shot,
+           then getting home — with margin to spare.</p>
+      </div>
+      <div class="features">
+        <article class="feature">
+          <span class="ico" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+            </svg>
+          </span>
+          <h3>A one-inch eye</h3>
+          <p>A 20-megapixel 1″ CMOS with dual native ISO captures 4K/120 in
+             10-bit D-Log M — the latitude to grade, not just to record.</p>
+          <span class="tag">Imaging</span>
+        </article>
+        <article class="feature">
+          <span class="ico" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2 3 14h7l-1 8 10-12h-7z"/>
+            </svg>
+          </span>
+          <h3>Stays up longer</h3>
+          <p>46 minutes on a charge, steady in 12 m/s gusts, with intelligent
+             return-to-home that always keeps enough reserve to land.</p>
+          <span class="tag">Flight</span>
+        </article>
+        <article class="feature">
+          <span class="ico" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 13a10 10 0 0 1 14 0M8 16.5a5 5 0 0 1 8 0"/><circle cx="12" cy="20" r="1.2" fill="currentColor"/>
+            </svg>
+          </span>
+          <h3>Never loses the link</h3>
+          <p>O4 HD transmission streams a 1080p/60 feed to 20 km with roughly
+             30 ms of latency across three frequency bands.</p>
+          <span class="tag">Transmission</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SPECIFICATIONS ================= -->
+  <section id="specs">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow muted">Technical specifications</p>
+        <h2>The full sheet.</h2>
+        <p>Measured at sea level, 25&nbsp;°C, unless noted. Figures for the
+           standard configuration with a single Intelligent Battery.</p>
+      </div>
+
+      <div class="spec-grid">
+
+        <!-- Imaging -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">01</span><h3>Imaging</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>Sensor</dt><dd>1″ CMOS · 20 MP</dd></div>
+            <div class="row"><dt>Lens</dt><dd>24 mm equiv. · ƒ/2.8–11</dd></div>
+            <div class="row"><dt>Field of view</dt><dd>84°</dd></div>
+            <div class="row"><dt>ISO (video)</dt><dd>100–12800</dd></div>
+            <div class="row"><dt>Shutter</dt><dd>8–1/8000 <span class="u">s</span></dd></div>
+            <div class="row"><dt>Video</dt><dd>4K120 · 1080p240</dd></div>
+            <div class="row"><dt>Color</dt><dd>10-bit D-Log M / HLG</dd></div>
+            <div class="row"><dt>Max bitrate</dt><dd>150 <span class="u">Mbps</span></dd></div>
+            <div class="row"><dt>Photo formats</dt><dd>JPEG · DNG (RAW)</dd></div>
+          </dl>
+        </div>
+
+        <!-- Flight -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">02</span><h3>Flight</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>Max horizontal speed</dt><dd>19 <span class="u">m/s</span></dd></div>
+            <div class="row"><dt>Max ascent / descent</dt><dd>8 / 6 <span class="u">m/s</span></dd></div>
+            <div class="row"><dt>Service ceiling</dt><dd>6000 <span class="u">m</span></dd></div>
+            <div class="row"><dt>Max flight time</dt><dd>46 <span class="u">min</span></dd></div>
+            <div class="row"><dt>Max hover time</dt><dd>42 <span class="u">min</span></dd></div>
+            <div class="row"><dt>Wind resistance</dt><dd>12 m/s · Lvl 6</dd></div>
+            <div class="row"><dt>Hover accuracy</dt><dd>±0.1 <span class="u">m</span></dd></div>
+            <div class="row"><dt>Obstacle sensing</dt><dd>Omnidirectional</dd></div>
+            <div class="row"><dt>GNSS</dt><dd>GPS · Galileo · BeiDou</dd></div>
+          </dl>
+        </div>
+
+        <!-- Transmission -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">03</span><h3>Transmission &amp; Control</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>System</dt><dd>O4 HD video</dd></div>
+            <div class="row"><dt>Max range (FCC)</dt><dd>20 <span class="u">km</span></dd></div>
+            <div class="row"><dt>Max range (CE)</dt><dd>10 <span class="u">km</span></dd></div>
+            <div class="row"><dt>Live view</dt><dd>1080p / 60 fps</dd></div>
+            <div class="row"><dt>Latency</dt><dd>≈ 30 <span class="u">ms</span></dd></div>
+            <div class="row"><dt>Frequency</dt><dd>2.4 / 5.2 / 5.8 <span class="u">GHz</span></dd></div>
+            <div class="row"><dt>Max download</dt><dd>30 <span class="u">MB/s</span></dd></div>
+          </dl>
+        </div>
+
+        <!-- Power -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">04</span><h3>Battery &amp; Power</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>Capacity</dt><dd>5000 <span class="u">mAh</span></dd></div>
+            <div class="row"><dt>Chemistry</dt><dd>LiPo 4S</dd></div>
+            <div class="row"><dt>Voltage</dt><dd>14.76 <span class="u">V</span></dd></div>
+            <div class="row"><dt>Energy</dt><dd>77 <span class="u">Wh</span></dd></div>
+            <div class="row"><dt>Charge time</dt><dd>60 min · 65 W</dd></div>
+            <div class="row"><dt>Operating temp</dt><dd>−10° to 40 <span class="u">°C</span></dd></div>
+          </dl>
+        </div>
+
+        <!-- Physical -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">05</span><h3>Physical</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>Takeoff weight</dt><dd>895 <span class="u">g</span></dd></div>
+            <div class="row"><dt>Folded</dt><dd>221 × 97 × 90 <span class="u">mm</span></dd></div>
+            <div class="row"><dt>Unfolded</dt><dd>348 × 283 × 108 <span class="u">mm</span></dd></div>
+            <div class="row"><dt>Diagonal</dt><dd>380 <span class="u">mm</span></dd></div>
+            <div class="row"><dt>Gimbal</dt><dd>3-axis mechanical</dd></div>
+          </dl>
+        </div>
+
+        <!-- Storage -->
+        <div class="spec-group">
+          <div class="glabel"><span class="n">06</span><h3>Storage &amp; Ports</h3></div>
+          <dl class="spec">
+            <div class="row"><dt>Internal</dt><dd>8 <span class="u">GB</span></dd></div>
+            <div class="row"><dt>Removable</dt><dd>microSD ≤ 512 GB</dd></div>
+            <div class="row"><dt>Data port</dt><dd>USB-C 3.2</dd></div>
+            <div class="row"><dt>Offload speed</dt><dd>up to 400 <span class="u">MB/s</span></dd></div>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= IN THE BOX ================= -->
+  <section id="box">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow muted">In the box</p>
+        <h2>Everything to fly today.</h2>
+      </div>
+      <ul class="box-list">
+        <li>1× Aircraft</li>
+        <li>1× RC Pro remote</li>
+        <li>3× Intelligent Batteries</li>
+        <li>1× Charging Hub</li>
+        <li>6× Propellers (3 pairs)</li>
+        <li>1× 65 W USB-C charger</li>
+        <li>2× USB-C cables</li>
+        <li>1× Carrying case</li>
+        <li>1× Spare gimbal cover</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= CTA STRIP ================= -->
+  <section class="cta-strip">
+    <div class="wrap">
+      <div class="panel">
+        <div>
+          <h2>Put one in the air.</h2>
+          <p>Book a hands-on demo with a Meridian specialist, or download the
+             printable spec sheet for your records.</p>
+        </div>
+        <div class="hero-cta">
+          <a class="btn" href="#">Request a demo</a>
+          <a class="btn ghost" href="#" onclick="window.print();return false;">Print / save PDF</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <div class="wrap">
+      <div class="brand">
+        <span class="mark">MERIDIAN</span>
+        <span class="sub">A7 · Aerial Systems</span>
+      </div>
+      <p class="fnote">
+        Specifications are representative placeholders for template use and are
+        subject to change. Flight time measured in controlled conditions;
+        actual performance varies with payload, wind, and temperature. © 2026
+        Meridian Aerial Systems.
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>
