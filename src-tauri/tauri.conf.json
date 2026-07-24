@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "app.quietengines.pagetml",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run build:runtime && npm run dev",
     "devUrl": "http://localhost:5179",
-    "beforeBuildCommand": "npm run build:app",
+    "beforeBuildCommand": "npm run build:runtime && npm run build:app",
     "frontendDist": "../dist"
   },
   "app": {

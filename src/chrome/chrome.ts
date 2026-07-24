@@ -7,7 +7,7 @@
 // (Presentation mode is M3; the Tauri shell, real file open, pagetml:// and
 // persistence are the native M2 pieces, deferred until there's a build env.)
 
-import { createTransport } from "../engine/index.js";
+import { createTransport, isAnchor } from "../engine/index.js";
 import type { Anchor, PageState, PagetmlMessage } from "../engine/index.js";
 import { FIXTURES } from "../fixtures.js";
 import {
@@ -71,8 +71,7 @@ function loadPosition(name: string): Anchor | null {
   try {
     const raw = localStorage.getItem(POS_KEY(name));
     const a = raw ? (JSON.parse(raw) as unknown) : null;
-    // Shape-check the stored anchor before trusting it.
-    return a && typeof a === "object" && Array.isArray((a as Anchor).path) ? (a as Anchor) : null;
+    return isAnchor(a) ? a : null;
   } catch {
     return null;
   }
@@ -254,7 +253,7 @@ class Chrome {
     name: string,
     html: string | undefined,
     pagetmlUrl?: string,
-    native?: { remote: boolean; position?: Anchor },
+    native?: NativeDoc,
   ): void {
     this.teardownReading(); // leak-safe regardless of caller
     this.currentFixture = name;

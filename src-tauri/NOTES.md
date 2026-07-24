@@ -42,8 +42,10 @@ use `cargo tauri dev` instead.
    `include_bytes!` (build.rs rebuilds on change). Embedding avoids the
    dev-vs-release resource-dir mismatch — `resolve(Resource)` pointed at
    `target/debug/` in dev but the bundle config nested it under `resources/`,
-   so it was never found. After editing runtime sources, re-run
-   `build:runtime`; cargo picks it up on the next build.
+   so it was never found. The bundle is git-ignored, so `tauri dev`/`tauri
+   build` regenerate it first (before-commands); a bare `cargo build` needs it
+   prebuilt and build.rs fails with that instruction if it's missing. After
+   editing runtime sources, re-run `build:runtime`; cargo picks it up next build.
 3. **Frontend build layout** — `dist/app/index.html` confirmed.
 4. **Start-screen sample docs** — gated behind `!isNative()`.
 5. **macOS "Open" event** — `RunEvent::Opened` handled in `run()` (bundled-app

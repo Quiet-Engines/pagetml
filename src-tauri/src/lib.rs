@@ -29,9 +29,6 @@ const RUNTIME_PATH: &str = "__pagetml__/runtime.js";
 /// mismatch entirely — the bundle is served identically in both.
 const RUNTIME_JS: &[u8] = include_bytes!("../resources/content-runtime.js");
 
-/// Per-app state: the directory of the currently open document (the pagetml://
-/// sandbox root), its pagetml:// URL, and its per-file "allow remote
-/// resources" flag (QE-1431).
 /// One remembered document (QE-1434). `position` is the engine's content
 /// anchor, stored opaquely — its shape belongs to the engine.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -43,28 +40,46 @@ struct DocEntry {
     position: Option<serde_json::Value>,
 }
 
+/// Per-app state: the directory of the currently open document (the pagetml://
+/// sandbox root), its pagetml:// URL, and the remembered-documents list.
 #[derive(Default)]
 struct AppState {
     base_dir: Mutex<Option<PathBuf>>,
     document_url: Mutex<Option<String>>,
-    remote_allowed: Mutex<bool>,
     /// Remembered documents, newest first; the current document is always the
-    /// front entry (open_path maintains this). Persisted to `store_path` on
-    /// every mutation. The shell owns this — not the chrome's localStorage —
-    /// because re-opening and per-file state need the real path.
+    /// front entry (open_path maintains this), so its per-file "allow remote"
+    /// flag and position live there — no separate mirror. Persisted to
+    /// `store_path` on every mutation. The shell owns this — not the chrome's
+    /// localStorage — because re-opening and per-file state need the real path.
     entries: Mutex<Vec<DocEntry>>,
     store_path: Mutex<Option<PathBuf>>,
+    /// Serializes disk saves so overlapping flushes can't interleave the temp
+    /// file or land out of order (set_position fires per page turn, fire-and-
+    /// forget, and Tauri runs commands on a thread pool).
+    save_lock: Mutex<()>,
 }
 
 fn load_entries(path: &Path) -> Vec<DocEntry> {
-    std::fs::read(path)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
+    match serde_json::from_slice(&bytes) {
+        Ok(entries) => entries,
+        // A non-empty file that won't parse is corrupt or from a newer schema.
+        // Don't silently return default — the next mutation would overwrite it
+        // and lose every remembered document. Preserve it for recovery first.
+        Err(_) => {
+            if !bytes.is_empty() {
+                let _ = std::fs::rename(path, path.with_extension("json.bak"));
+            }
+            Vec::new()
+        }
+    }
 }
 
 fn save_entries(state: &AppState) {
     let Some(path) = state.store_path.lock().unwrap().clone() else { return };
+    // Hold the save lock across snapshot + write + rename so concurrent saves
+    // are fully serialized (see save_lock).
+    let _saving = state.save_lock.lock().unwrap();
     let json = match serde_json::to_vec_pretty(&*state.entries.lock().unwrap()) {
         Ok(j) => j,
         Err(_) => return,
@@ -72,7 +87,14 @@ fn save_entries(state: &AppState) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let _ = std::fs::write(path, json);
+    // Atomic write: a position flush fires on every page turn, so an
+    // interrupted plain write would corrupt the store and load_entries would
+    // reset it. Write a temp then rename (atomic on the same fs), so a crash
+    // always leaves the previous good store intact.
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, &json).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
 }
 
 /// The webview-facing base URL for the custom scheme. macOS/Linux navigate
@@ -180,7 +202,9 @@ fn handle_pagetml<R: tauri::Runtime>(
     let Some(base) = state.base_dir.lock().unwrap().clone() else {
         return error(StatusCode::NOT_FOUND, "no document open");
     };
-    let allow_remote = *state.remote_allowed.lock().unwrap();
+    // The current document is always entries[0], so its remote flag is the
+    // single source of truth for the served CSP.
+    let allow_remote = state.entries.lock().unwrap().first().is_some_and(|e| e.remote);
 
     let decoded = urlencoding::decode(raw_path).unwrap_or_default().into_owned();
     let requested = base.join(&decoded);
@@ -229,6 +253,12 @@ fn handle_pagetml<R: tauri::Runtime>(
 
 /// Point the sandbox at `path`, then tell the chrome which pagetml:// URL to load.
 fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
+    // Canonicalize so the store keys documents by a single stable identity —
+    // the same file reached via a relative CLI arg, a Finder absolute URL, a
+    // symlink, or a case-variant on APFS must be one entry, not several (and
+    // must find its saved position/remote flag). Matches the traversal guard,
+    // which also canonicalizes. Falls back to the raw path if the file is gone.
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
     let Some(dir) = path.parent().map(Path::to_path_buf) else { return };
     let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_string();
 
@@ -248,10 +278,6 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
         entry
     };
     save_entries(&state);
-
-    // The served CSP and the chrome's toggle both come from the stored
-    // per-file preference — a new document starts default-deny (QE-1431).
-    *state.remote_allowed.lock().unwrap() = entry.remote;
 
     let url = format!("{}/{}", scheme_base(), urlencoding::encode(&file));
     *state.document_url.lock().unwrap() = Some(url.clone());
@@ -318,7 +344,6 @@ fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usiz
 #[tauri::command]
 fn set_remote(app: tauri::AppHandle, allowed: bool) {
     let state = app.state::<AppState>();
-    *state.remote_allowed.lock().unwrap() = allowed;
     if let Some(e) = state.entries.lock().unwrap().first_mut() {
         e.remote = allowed;
     }

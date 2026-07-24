@@ -8,7 +8,7 @@
 // the URL directly into its content frame (the runtime is injected server-side
 // by the pagetml:// handler, so no `loadDocument` message is needed).
 
-import type { Anchor } from "../engine/index.js";
+import { isAnchor, type Anchor } from "../engine/index.js";
 
 interface TauriGlobal {
   event: {
@@ -27,8 +27,6 @@ export function isNative(): boolean {
   return tauri() !== undefined;
 }
 
-/** Wire the shell's open-document event to `open(name, url)`. No-op in a plain
- *  browser. */
 /** A document the shell asks the chrome to open, with its stored per-file
  *  state from the shell's persistent store (QE-1434). */
 export interface NativeDoc {
@@ -39,6 +37,8 @@ export interface NativeDoc {
   position?: Anchor;
 }
 
+/** Wire the shell's open-document event to `open(doc)`. No-op in a plain
+ *  browser. */
 export function initNativeShell(open: (doc: NativeDoc) => void): void {
   const t = tauri();
   if (!t) return;
@@ -50,15 +50,14 @@ export function initNativeShell(open: (doc: NativeDoc) => void): void {
     .listen("open-document", (e) => {
       const p = e.payload as { url?: unknown; replay?: unknown; remote?: unknown; position?: unknown };
       if (typeof p?.url !== "string") return;
-      // Shape-check the stored anchor before trusting it (mirrors loadPosition).
-      const pos = p.position as Anchor | null | undefined;
       open({
         // <base>/<encoded name> → display name.
         name: decodeURIComponent(p.url.split("/").pop() ?? "document").replace(/\.html?$/i, ""),
         url: p.url,
         replay: p.replay === true,
         remote: p.remote === true,
-        position: pos && typeof pos === "object" && Array.isArray(pos.path) ? pos : undefined,
+        // Shape-check the stored anchor before trusting it.
+        position: isAnchor(p.position) ? p.position : undefined,
       });
     })
     .then(() => t.core.invoke("frontend_ready"));
