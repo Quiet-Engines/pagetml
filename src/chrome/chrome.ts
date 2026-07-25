@@ -449,6 +449,10 @@ class Chrome {
     } else if (msg.type === "activity") {
       // Pointer moved inside the content frame — keep the cursor visible.
       if (this.presenting) this.bumpCursor();
+    } else if (msg.type === "wheel") {
+      // Wheel/trackpad swipe forwarded from the content frame (QE-1445).
+      if (this.presenting) this.bumpCursor();
+      this.onWheelDelta(msg.dx, msg.dy);
     }
   }
 
@@ -481,25 +485,35 @@ class Chrome {
     this.keyHandler = (e: KeyboardEvent) => this.onKey(e);
     window.addEventListener("keydown", this.keyHandler);
 
+    // Wheel/trackpad over the chrome itself (chevrons, statusbar). Wheel over
+    // the content frame is forwarded as a `wheel` message (QE-1445) and routed
+    // through the same handler.
     const stage = this.root.querySelector<HTMLElement>("[data-testid=stage]")!;
     stage.addEventListener(
       "wheel",
       (e) => {
         e.preventDefault();
-        // Ignore events entirely while locked (don't accumulate), so residual
-        // momentum after a turn can't trigger a stray extra turn.
-        if (this.wheelLock) return;
-        this.wheelAccum += e.deltaY;
-        if (Math.abs(this.wheelAccum) < 24) return; // small-scroll deadzone
-        const forward = this.wheelAccum > 0;
-        this.wheelAccum = 0;
-        forward ? this.next() : this.prev();
-        // Coalesce a burst of wheel events into one discrete page turn.
-        this.wheelLock = true;
-        window.setTimeout(() => (this.wheelLock = false), 260);
+        this.onWheelDelta(e.deltaX, e.deltaY);
       },
       { passive: false },
     );
+  }
+
+  /** Turn a page from a wheel/trackpad delta. Uses the dominant axis, so a
+   *  two-finger horizontal swipe (dx) turns pages just like a vertical scroll
+   *  (dy). Positive → next, negative → prev (QE-1445). */
+  private onWheelDelta(dx: number, dy: number): void {
+    // Ignore events entirely while locked (don't accumulate), so residual
+    // momentum after a turn can't trigger a stray extra turn.
+    if (this.wheelLock) return;
+    this.wheelAccum += Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+    if (Math.abs(this.wheelAccum) < 24) return; // small-scroll deadzone
+    const forward = this.wheelAccum > 0;
+    this.wheelAccum = 0;
+    forward ? this.next() : this.prev();
+    // Coalesce a burst of wheel events into one discrete page turn.
+    this.wheelLock = true;
+    window.setTimeout(() => (this.wheelLock = false), 260);
   }
 
   private onKey(e: KeyboardEvent): void {
