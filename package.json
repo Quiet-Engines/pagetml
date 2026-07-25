@@ -2,7 +2,7 @@
   "name": "pagetml",
   "version": "0.0.1",
   "private": true,
-  "description": "PageTML — a paginated HTML reader for Mac and Windows. Milestone 1: the shared pagination engine.",
+  "description": "PageTML \u2014 a paginated HTML reader for Mac and Windows. Milestone 1: the shared pagination engine.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "test:native": "bash scripts/smoke-native.sh",
     "build:app": "vite build",
     "build:runtime": "vite build --config vite.runtime.config.ts",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:fileassoc": "bash scripts/verify-fileassoc.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

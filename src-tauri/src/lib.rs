@@ -59,6 +59,25 @@ struct AppState {
     save_lock: Mutex<()>,
 }
 
+/// Load the persisted store into state and record its path, once. Idempotent
+/// (a set `store_path` means already loaded). Called from `open_path` as well
+/// as `setup`, because on macOS a launch-with-document delivers `RunEvent::
+/// Opened` before `setup` runs — open_path must initialize the store itself
+/// rather than assume setup won the race, or the opened document is added to
+/// in-memory state that setup then clobbers with the (empty) on-disk load.
+fn ensure_store_loaded<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let mut store_path = state.store_path.lock().unwrap();
+    if store_path.is_some() {
+        return;
+    }
+    if let Ok(dir) = app.path().app_data_dir() {
+        let path = dir.join("store.json");
+        *state.entries.lock().unwrap() = load_entries(&path);
+        *store_path = Some(path);
+    }
+}
+
 fn load_entries(path: &Path) -> Vec<DocEntry> {
     let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
     match serde_json::from_slice(&bytes) {
@@ -282,6 +301,12 @@ fn open_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: PathBuf) {
     let Some(dir) = path.parent().map(Path::to_path_buf) else { return };
     let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_string();
 
+    // A macOS launch-with-document (RunEvent::Opened) can reach here before
+    // setup has loaded the store, so initialize it first — otherwise this
+    // document is added to state that setup then overwrites with the on-disk
+    // load, and the file opens into a void (no persisted entry).
+    ensure_store_loaded(app);
+
     let state = app.state::<AppState>();
     *state.base_dir.lock().unwrap() = Some(dir);
 
@@ -466,14 +491,11 @@ pub fn run() {
             open_recent
         ])
         .setup(|app| {
-            // Load the remembered-documents store (QE-1434) before anything can
-            // open a document — the CLI-arg open below reads and updates it.
-            if let Ok(dir) = app.path().app_data_dir() {
-                let store = dir.join("store.json");
-                let state = app.state::<AppState>();
-                *state.entries.lock().unwrap() = load_entries(&store);
-                *state.store_path.lock().unwrap() = Some(store);
-            }
+            // Load the remembered-documents store (QE-1434). Idempotent: if a
+            // macOS launch-with-document already initialized it via open_path
+            // (RunEvent::Opened can precede setup), this is a no-op and the
+            // opened document survives.
+            ensure_store_loaded(app.handle());
 
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.
