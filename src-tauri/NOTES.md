@@ -108,6 +108,19 @@ Verified: chrome logic in `tests/native.spec.ts` (mocked bridge); the
 window enters fullscreen. **Manual QA (§7):** notch handling, and the physical
 display-disconnect (can't be simulated headlessly).
 
+## WKWebView fragmentation validation (QE-1445)
+
+`npm run test:frag` runs the pagination invariant suite (no clipping, full
+reachability) over the whole fixture corpus × sizes inside the **real system
+WKWebView** (via wry) — not Playwright's bundled WebKit, which this cycle
+proved differs (CSP `connect-src`). Mechanism: `PAGETML_HARNESS=1` makes the
+shell load `harness/index.html?report=1` in its webview instead of the chrome;
+the harness iterates fixtures, runs the checks, and posts them to the
+`report_invariants` command, which prints them and exits. The env gate is
+test-only (set solely by `scripts/verify-frag.sh`). Negative-control-checked:
+a fabricated clipping offender makes it fail. Needs a display (like the other
+native tests).
+
 ## Remaining TODO
 
 - **`WKContentRuleList` network gate** (see CSP finding above).

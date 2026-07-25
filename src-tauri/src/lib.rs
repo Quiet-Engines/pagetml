@@ -397,6 +397,17 @@ fn set_native_fullscreen(app: tauri::AppHandle, on: bool) {
     }
 }
 
+/// Fragmentation-validation harness sink (QE-1445): the WKWebView harness
+/// posts its invariant results here; print them for `verify-frag.sh` and quit.
+/// Only reachable in `PAGETML_HARNESS` mode.
+#[tauri::command]
+fn report_invariants(results: serde_json::Value) {
+    println!("PAGETML_INVARIANTS {results}");
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    std::process::exit(0);
+}
+
 #[tauri::command]
 fn set_remote(app: tauri::AppHandle, allowed: bool) {
     let state = app.state::<AppState>();
@@ -509,7 +520,8 @@ pub fn run() {
             open_dialog,
             frontend_ready,
             recent_names,
-            open_recent
+            open_recent,
+            report_invariants
         ])
         .setup(|app| {
             // Load the remembered-documents store (QE-1434). Idempotent: if a
@@ -518,9 +530,19 @@ pub fn run() {
             // opened document survives.
             ensure_store_loaded(app.handle());
 
-            // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
-            // frontendDist in release, so this one path works for both.
-            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("app/index.html".into()))
+            // Fragmentation-validation harness (QE-1445, `PAGETML_HARNESS`): load
+            // the invariant harness in the real WKWebView instead of the chrome.
+            // Test-only — the env var is set solely by `scripts/verify-frag.sh`.
+            let url = if std::env::var_os("PAGETML_HARNESS").is_some() {
+                WebviewUrl::External(
+                    "http://localhost:5179/harness/index.html?report=1".parse().unwrap(),
+                )
+            } else {
+                // WebviewUrl::App resolves against devUrl in dev and frontendDist
+                // in release, so this one path works for both.
+                WebviewUrl::App("app/index.html".into())
+            };
+            let win = WebviewWindowBuilder::new(app, "main", url)
                 .title("PageTML")
                 .inner_size(1100.0, 780.0)
                 .min_inner_size(640.0, 480.0)

@@ -4,6 +4,7 @@
 // architecture: the engine paginates a document inside a frame); the engine runs
 // against that iframe's window.
 
+import { FIXTURES } from "../src/fixtures.js";
 import {
   createPaginator,
   elementAtPath,
@@ -291,6 +292,39 @@ async function boot() {
   const harness = new PagetmlHarness();
   window.__pagetml = harness;
   const params = new URLSearchParams(location.search);
+
+  // WKWebView fragmentation validation (QE-1445): when driven by the shell's
+  // fragcheck mode, run the invariant suite over the whole fixture corpus at
+  // several sizes inside the REAL system WKWebView (not Playwright's WebKit,
+  // which is a different build), and report the results to the shell.
+  if (params.get("report") === "1") {
+    const sizes: Array<[number, number]> = [
+      [800, 600],
+      [1024, 768],
+      [480, 720],
+    ];
+    const results = [];
+    for (const fixture of FIXTURES) {
+      for (const [w, h] of sizes) {
+        await harness.load(fixture, w, h);
+        const inv = harness.invariants();
+        results.push({
+          fixture,
+          w,
+          h,
+          pageCount: inv.pageCount,
+          clipping: inv.clipping.length,
+          unreachable: inv.unreachable.length,
+        });
+      }
+    }
+    const tauri = (globalThis as { __TAURI__?: { core?: { invoke(cmd: string, args?: unknown): Promise<unknown> } } })
+      .__TAURI__;
+    await tauri?.core?.invoke("report_invariants", { results });
+    window.__pagetmlReady = true;
+    return;
+  }
+
   const fixture = params.get("fixture");
   const w = Number(params.get("w") ?? 800);
   const h = Number(params.get("h") ?? 600);

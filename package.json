@@ -15,7 +15,8 @@
     "build:app": "vite build",
     "build:runtime": "vite build --config vite.runtime.config.ts",
     "tauri": "tauri",
-    "test:fileassoc": "bash scripts/verify-fileassoc.sh"
+    "test:fileassoc": "bash scripts/verify-fileassoc.sh",
+    "test:frag": "bash scripts/verify-frag.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
