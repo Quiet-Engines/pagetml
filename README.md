@@ -1,116 +1,135 @@
-# PageTML — pagination engine (Milestone 1)
+# PageTML
 
-PageTML is a paginated HTML reader/presenter for macOS and Windows. This
-repository currently contains **Milestone 1: the shared pagination engine** —
-the platform-agnostic core that turns an arbitrary HTML document into discrete,
-navigable pages. (Linear project: *PageTML Application*, milestone M1.)
+A standalone HTML reader and presenter for macOS. It opens a local `.html`
+document and presents it as discrete, navigable **pages** — like a slide deck or
+a PDF reader — instead of one long scroll. Built for presenting to an audience
+and for distraction-free reading.
 
-The engine is the product's core IP. It runs inside the (sandboxed) content
-frame in the real app; here it is exercised in headless browsers under
-Playwright, exactly as it will run in WebView2 and WKWebView.
+The idea: browsers already render HTML/CSS perfectly; what they lack is
+*pagination*. PageTML layers the pagination and presenter experience on top of
+the system web engine (WKWebView) rather than shipping a new rendering engine.
 
-## The technique
+## Install (macOS)
+
+Requires **macOS 12 (Monterey) or later** on Apple Silicon.
+
+1. Download the latest `PageTML_*.dmg` from the [Releases](../../releases) page.
+2. Open the `.dmg` and drag **PageTML** into your Applications folder.
+3. Open a document — right-click a `.html` file → **Open With ▸ PageTML**, use
+   **File ▸ Open** (`⌘O`), or drag the file onto the window.
+
+Release builds are Developer ID-signed and notarized, so they open without
+Gatekeeper warnings.
+
+## Using it
+
+- **Open** a local `.html`/`.htm` file (drag-drop, `⌘O`, or "Open With"). Its
+  relative assets — images, CSS, fonts — load from the file's own folder, and
+  your last-read position is remembered per document.
+- **Read**: one page at a time, sized to the window. `→` / `Space` / two-finger
+  swipe / scroll to advance, `←` to go back, `Home`/`End` for first/last.
+- **Present** (`F5`): fills the screen, hides the chrome, and freezes pagination
+  so your page numbers don't shift. `B`/`W` for a black/white screen, type a
+  number + `Enter` to jump, `Esc` to exit.
+- **Remote resources are off by default** — an opened document can't reach the
+  internet unless you flip the per-file **Remote** toggle. This keeps an
+  untrusted file from phoning home.
+
+Full guide: **[docs/help.md](docs/help.md)**.
+
+---
+
+## Development
+
+PageTML is a [Tauri](https://tauri.app) v2 app: a shared TypeScript pagination
+engine that runs inside a sandboxed content frame, a trusted "chrome" UI that
+drives it over a versioned `postMessage` schema, and a Rust shell (`src-tauri/`)
+that serves documents over a custom `pagetml://` protocol and handles native
+open / menus / fullscreen / persistence.
+
+```
+src/engine/      Pagination engine — multicol flow, measurement, anchors, normalization
+src/chrome/      Trusted app UI (start screen, reading & presentation modes)
+src/content/     The runtime injected alongside the user's document
+src-tauri/       Rust shell — pagetml:// serving, sandbox, persistence, native integration
+harness/         Drives the engine in an iframe + invariant checks
+public/fixtures/ The pagination fixture corpus
+tests/           Playwright specs
+```
+
+### The pagination technique
 
 CSS multi-column, the approach proven by EPUB renderers such as Readium:
 
 - The document body is wrapped in a **flow** element styled as a multi-column
   box whose `column-width` equals the viewport width and whose height is fixed
-  to the viewport height, with `column-fill: auto`. The browser flows content
-  into fixed-size columns — **each column is one page** — using its own
+  to the viewport height (`column-fill: auto`). The engine flows content into
+  fixed-size columns — **each column is one page** — using the browser's own
   line-breaking, float, and fragmentation logic.
-- Extra columns overflow the one-column-wide box to the right; the viewport
-  clips them. **Page turns translate the flow horizontally** by whole page
-  widths (`translateX(-page × (pageWidth + gap))`).
-- `break-before/after/inside` flow through natively via column fragmentation.
+- Extra columns overflow to the right; the viewport clips them. **Page turns
+  translate the flow horizontally** by whole page widths.
+- Author `break-before/after/inside` rules flow through natively via column
+  fragmentation.
 
-## Layout
-
-```
-src/engine/
-  paginator.ts   Core engine: multicol flow, page counting, navigation,
-                 live repagination observers (QE-1415, QE-1416)
-  measure.ts     Transform-independent measurement (QE-1418)
-  anchor.ts      Content anchors: CFI-like path + offset (QE-1417)
-  normalize.ts   Break hints, tall-media scaling, fixed/sticky, scroll-shell
-                 unwrapping (QE-1419/1420/1421/1422)
-  messages.ts    Versioned engine↔chrome postMessage schema (QE-1423)
-harness/         Test harness that drives the engine in an iframe + invariant
-                 checks (QE-1425)
-public/fixtures/ The fixture corpus (QE-1424)
-tests/           Playwright specs: invariants, anchors, metrics
-```
-
-## Design notes worth carrying forward
+Two design decisions carried throughout:
 
 - **All measurement goes through the flow, not the viewport.** An element's rect
-  and the flow's rect are both shifted by the flow's current transform (even an
-  interpolated value mid page-turn), so measuring child-relative-to-flow cancels
-  the transform exactly. This is the generalized fix for the mockup's
-  "measuring mid-transition returns interpolated values" bug (`measure.ts`).
+  and the flow's rect are both shifted by the flow's current transform (even
+  mid page-turn), so measuring child-relative-to-flow cancels the transform
+  exactly.
 - **Position is a content anchor, never a page number.** Page numbers are a
   function of window size; a CFI-like path + offset survives repagination and
-  restart. Tests assert on **containment** (the anchor's target is on the
-  restored page), never on an expected page number — because font size scales
-  with window width, the same content legitimately lands on a different page
-  number after a resize.
+  restart. So the same content legitimately lands on a different page number
+  after a resize — which is why presentation mode *locks* pagination.
 
-## Running
+### Build
 
 ```bash
 npm install
+npm run tauri dev        # run the app over the Vite dev server
+npm run build:runtime    # rebuild the injected content runtime after editing it
+npx tauri build          # produce a local .app/.dmg (ad-hoc signed)
+npm run build:release    # signed + notarized build (needs Apple creds — see src-tauri/NOTES.md)
+```
+
+### Tests
+
+```bash
 npm run typecheck
 npm test                 # engine invariants, both engines (needs Chromium + WebKit)
 npm run test:chromium    # Chromium only
 npm run test:webkit      # WebKit only
 ```
 
-The Tauri shell (`src-tauri/`) has its own two-layer coverage, since the
-Playwright engine suite never loads the native shell:
+The Playwright suite never loads the native shell, so the Rust shell has its own
+layered coverage (macOS; the driven ones need a desktop/display):
 
 ```bash
-npm run test:shell       # headless Rust unit tests (cargo test): traversal
-                         # guard, store durability/identity, injection contract
-npm run test:native      # driven smoke: builds and runs the real binary, asserts
-                         # a document actually boots the runtime and paginates
-                         # (needs a desktop/display; uses the store as the oracle)
-npm run test:fileassoc   # builds the .app and opens an .html through Launch
-                         # Services, asserting it arrives via RunEvent::Opened
-                         # and paginates (macOS bundle; QE-1447)
-npm run test:frag        # runs the pagination invariant suite inside the REAL
-                         # system WKWebView (not Playwright's WebKit), asserting
-                         # no clipping / unreachable across the corpus (QE-1445)
+npm run test:shell       # headless Rust unit tests: traversal guard, store
+                         # durability/identity, runtime-injection contract
+npm run test:native      # driven smoke — the real binary boots the runtime and paginates
+npm run test:fileassoc   # opens an .html through Launch Services → RunEvent::Opened
+npm run test:frag        # the invariant suite inside the REAL system WKWebView
 ```
 
-The invariants asserted for every fixture at multiple window sizes (spec §7):
+The invariants asserted for every fixture at multiple window sizes:
 
-1. **No clipping** — no line/fragment straddles a page boundary or exceeds a
-   page.
-2. **Reachability** — every leaf's fragments land on a counted page (nothing
-   lost past the last page).
+1. **No clipping** — no line/fragment straddles a page boundary or exceeds a page.
+2. **Reachability** — every leaf's fragments land on a counted page.
 3. **Anchor stability** — after a resize round-trip, an anchor still resolves to
    a page containing its target element.
 
-## WKWebView go/no-go (QE-1426) — status: **GO**
+### Engine validation
 
-M1's exit criterion is "fixture invariants green on both Chromium and WebKit,
-WKWebView go/no-go decided." Decided 2026-07-23 on macOS (the WKWebView target
-platform): **both engines green** — full suite 153/154 passed, the one
-remainder being a known-flaky timing test that passes on retry.
+The multicol technique is validated on both Chromium (the WebView2 reference)
+and WebKit. Two engine differences were absorbed along the way: sticky elements
+normalize to `static` (WebKit pins an abspos static position in a multicol to
+column 1), and a page holding only a leaf's spill-over tail falls back to that
+leaf for its anchor. The invariants are also validated inside the **real system
+WKWebView** the app ships on — not just Playwright's bundled WebKit, which
+differs from it — via `npm run test:frag`.
 
-Getting WebKit green surfaced two genuine engine differences, both absorbed in
-the engine (not worked around in tests):
+### Releasing
 
-- **Sticky normalization (QE-1421):** sticky now converts to `static`, not
-  `absolute` — WebKit resolves an abspos static position in a multicol against
-  the first column, pinning the element to page 0.
-- **Anchors on spill-over pages (QE-1417):** a page holding only the tail of a
-  leaf that begins earlier had no anchor; `captureAnchor` now falls back to the
-  leaf whose fragments reach the page.
-
-One finding stands as a **native-shell requirement rather than a no-go**:
-WebKit enforces most CSP directives but does not stop `connect-src` traffic —
-a `no-cors` fetch leaves the browser despite the header (verified by request
-interception; Chromium blocks it). The default-deny network guarantee
-(QE-1431) on WKWebView therefore needs a native gate (`WKContentRuleList`) in
-the shell; `tests/sandbox.spec.ts` documents this as an expected failure on
-WebKit that will surface as an "unexpected pass" if upstream fixes it.
+See **[docs/RELEASING.md](docs/RELEASING.md)** for cutting a signed, notarized
+GitHub release.
