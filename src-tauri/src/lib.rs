@@ -372,9 +372,10 @@ fn set_position(app: tauri::AppHandle, anchor: serde_json::Value) {
     save_entries(&state);
 }
 
-#[tauri::command]
-fn open_dialog(app: tauri::AppHandle) {
-    // Native "Open…" — pick an .html file, then serve it via pagetml://.
+/// Native "Open…" — pick an .html file, then serve it via pagetml://. Shared by
+/// the chrome's dropzone (the `open_dialog` command) and File > Open… (menu).
+fn pick_and_open<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let app = app.clone();
     app.dialog()
         .file()
         .add_filter("HTML", &["html", "htm"])
@@ -385,6 +386,70 @@ fn open_dialog(app: tauri::AppHandle) {
                 }
             }
         });
+}
+
+#[tauri::command]
+fn open_dialog(app: tauri::AppHandle) {
+    pick_and_open(&app);
+}
+
+/// Build and install the app menu (QE-1427/1428). The only custom item is
+/// File > Open… (id "open", ⌘O) — everything else is a standard predefined
+/// item so macOS handles it natively. Menus give the shell keyboard shortcuts
+/// and a File > Open path independent of the start-screen dropzone.
+fn install_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem as Pre, Submenu};
+
+    let app_menu = Submenu::with_items(
+        app,
+        "PageTML",
+        true,
+        &[
+            &Pre::about(app, Some("PageTML"), None)?,
+            &Pre::separator(app)?,
+            &Pre::services(app, None)?,
+            &Pre::separator(app)?,
+            &Pre::hide(app, None)?,
+            &Pre::hide_others(app, None)?,
+            &Pre::show_all(app, None)?,
+            &Pre::separator(app)?,
+            &Pre::quit(app, None)?,
+        ],
+    )?;
+
+    let open = MenuItem::with_id(app, "open", "Open…", true, Some("CmdOrCtrl+O"))?;
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[&open, &Pre::separator(app)?, &Pre::close_window(app, None)?],
+    )?;
+
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &Pre::undo(app, None)?,
+            &Pre::redo(app, None)?,
+            &Pre::separator(app)?,
+            &Pre::cut(app, None)?,
+            &Pre::copy(app, None)?,
+            &Pre::paste(app, None)?,
+            &Pre::select_all(app, None)?,
+        ],
+    )?;
+
+    let window_menu = Submenu::with_items(
+        app,
+        "Window",
+        true,
+        &[&Pre::minimize(app, None)?, &Pre::fullscreen(app, None)?],
+    )?;
+
+    let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &window_menu])?;
+    menu.set_as_app_menu()?;
+    Ok(())
 }
 
 pub fn run() {
@@ -417,6 +482,13 @@ pub fn run() {
                 .inner_size(1100.0, 780.0)
                 .min_inner_size(640.0, 480.0)
                 .build()?;
+
+            install_menu(app.handle())?;
+            app.on_menu_event(|app, event| {
+                if event.id().as_ref() == "open" {
+                    pick_and_open(app);
+                }
+            });
 
             // Open a file passed on the command line (OS file association routes
             // the opened path here as argv[1] on Windows/Linux; macOS delivers it
