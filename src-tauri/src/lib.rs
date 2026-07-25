@@ -387,6 +387,16 @@ fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usiz
     }
 }
 
+/// Enter/leave real macOS fullscreen for presentation mode (QE-1446) — a native
+/// fullscreen Space, not the webview's element-fullscreen. The chrome watches
+/// the `fullscreen-changed` event for the resulting transition.
+#[tauri::command]
+fn set_native_fullscreen(app: tauri::AppHandle, on: bool) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_fullscreen(on);
+    }
+}
+
 #[tauri::command]
 fn set_remote(app: tauri::AppHandle, allowed: bool) {
     let state = app.state::<AppState>();
@@ -495,6 +505,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_remote,
             set_position,
+            set_native_fullscreen,
             open_dialog,
             frontend_ready,
             recent_names,
@@ -515,18 +526,29 @@ pub fn run() {
                 .min_inner_size(640.0, 480.0)
                 .build()?;
 
-            // Drag-and-drop opens the dropped file (QE-1428). Tauri's own OS
-            // drag-drop handler captures file drops before the webview's HTML5
-            // `drop` fires, so the file goes through open_path here (real path →
-            // pagetml://), the same path as CLI/file-association opens — not the
-            // File API.
-            let dnd_handle = app.handle().clone();
-            win.on_window_event(move |event| {
-                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+            // Window events (QE-1428 drag-drop, QE-1446 display handling).
+            let evt_handle = app.handle().clone();
+            win.on_window_event(move |event| match event {
+                // Drag-and-drop opens the dropped file. Tauri's own OS drag-drop
+                // handler captures file drops before the webview's HTML5 `drop`
+                // fires, so the file goes through open_path here (real path →
+                // pagetml://), the same path as CLI/file-association opens.
+                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
                     if let Some(path) = paths.iter().find(|p| p.is_file()) {
-                        open_path(&dnd_handle, path.clone());
+                        open_path(&evt_handle, path.clone());
                     }
                 }
+                // Fullscreen transitions resize the window; there is no dedicated
+                // fullscreen event. Report the current fullscreen state so the
+                // chrome can re-lock at the display resolution on entry and drop
+                // out of presentation when macOS leaves fullscreen — including
+                // when the presenting display disconnects (QE-1446 / M3 rule).
+                tauri::WindowEvent::Resized(_) => {
+                    if let Some(w) = evt_handle.get_webview_window("main") {
+                        let _ = evt_handle.emit("fullscreen-changed", w.is_fullscreen().unwrap_or(false));
+                    }
+                }
+                _ => {}
             });
 
             install_menu(app.handle())?;
