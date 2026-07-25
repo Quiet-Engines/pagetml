@@ -10,6 +10,8 @@
     "test": "playwright test",
     "test:chromium": "playwright test --project=chromium",
     "test:webkit": "playwright test --project=webkit",
+    "test:shell": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:native": "bash scripts/smoke-native.sh",
     "build:app": "vite build",
     "build:runtime": "vite build --config vite.runtime.config.ts",
     "tauri": "tauri"
