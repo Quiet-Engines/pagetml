@@ -353,27 +353,37 @@ fn frontend_ready(app: tauri::AppHandle, state: tauri::State<AppState>) {
     }
 }
 
-/// File names of the shell's recent documents, newest first.
-#[tauri::command]
-fn recent_names(state: tauri::State<AppState>) -> Vec<String> {
+/// Remembered documents whose file still exists, newest first. Recents that
+/// point at moved/deleted files are skipped — showing them means clicking does
+/// nothing (open_recent's existence check silently fails), which reads as
+/// "recents are broken". `recent_names` and `open_recent` derive from this same
+/// list so a display index maps to the right document.
+fn openable_paths(state: &AppState) -> Vec<PathBuf> {
     state
         .entries
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|e| e.path.file_name().and_then(|f| f.to_str()).map(String::from))
+        .filter(|e| e.path.is_file())
+        .map(|e| e.path.clone())
         .collect()
 }
 
-/// Re-open the i-th recent document (the shell holds the real path — the
-/// chrome only ever sees display names).
+/// File names of the shell's openable recent documents, newest first.
+#[tauri::command]
+fn recent_names(state: tauri::State<AppState>) -> Vec<String> {
+    openable_paths(&state)
+        .iter()
+        .filter_map(|p| p.file_name().and_then(|f| f.to_str()).map(String::from))
+        .collect()
+}
+
+/// Re-open the i-th openable recent document (indexes the same filtered list
+/// `recent_names` returns, so the index stays aligned with what's shown).
 #[tauri::command]
 fn open_recent(app: tauri::AppHandle, state: tauri::State<AppState>, index: usize) {
-    let path = state.entries.lock().unwrap().get(index).map(|e| e.path.clone());
-    if let Some(path) = path {
-        if path.is_file() {
-            open_path(&app, path);
-        }
+    if let Some(path) = openable_paths(&state).into_iter().nth(index) {
+        open_path(&app, path);
     }
 }
 
@@ -499,11 +509,25 @@ pub fn run() {
 
             // Host the chrome. WebviewUrl::App resolves against devUrl in dev and
             // frontendDist in release, so this one path works for both.
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("app/index.html".into()))
+            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("app/index.html".into()))
                 .title("PageTML")
                 .inner_size(1100.0, 780.0)
                 .min_inner_size(640.0, 480.0)
                 .build()?;
+
+            // Drag-and-drop opens the dropped file (QE-1428). Tauri's own OS
+            // drag-drop handler captures file drops before the webview's HTML5
+            // `drop` fires, so the file goes through open_path here (real path →
+            // pagetml://), the same path as CLI/file-association opens — not the
+            // File API.
+            let dnd_handle = app.handle().clone();
+            win.on_window_event(move |event| {
+                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                    if let Some(path) = paths.iter().find(|p| p.is_file()) {
+                        open_path(&dnd_handle, path.clone());
+                    }
+                }
+            });
 
             install_menu(app.handle())?;
             app.on_menu_event(|app, event| {
@@ -619,6 +643,22 @@ mod tests {
         }
         assert_eq!(entries.len(), 10);
         assert_eq!(entries[0].path, PathBuf::from("/docs/14.html")); // newest first
+    }
+
+    #[test]
+    fn openable_paths_skips_missing_files() {
+        let dir = scratch("openable");
+        let real = dir.join("real.html");
+        std::fs::write(&real, b"<p>x</p>").unwrap();
+        let missing = dir.join("gone.html"); // never created — a moved/deleted recent
+        let state = AppState::default();
+        *state.entries.lock().unwrap() = vec![
+            DocEntry { path: missing, remote: false, position: None },
+            DocEntry { path: real.clone(), remote: false, position: None },
+        ];
+        // Only the existing file is openable, so index 0 maps to it — clicking
+        // the first shown recent opens `real`, not the (hidden) missing entry.
+        assert_eq!(openable_paths(&state), vec![real]);
     }
 
     // --- store persistence durability (QE-1434) -----------------------------
