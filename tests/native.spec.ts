@@ -48,11 +48,8 @@ async function emit(page: import("@playwright/test").Page, name: string, payload
  *  (the native pagetml:// path can't load here). */
 async function openReadingMode(page: import("@playwright/test").Page) {
   await page.getByTestId("start").waitFor();
-  await page.locator("[data-testid=file-input]").setInputFiles({
-    name: "doc.html",
-    mimeType: "text/html",
-    buffer: Buffer.from("<h1>Doc</h1>" + "<p>para</p>".repeat(40)),
-  });
+  // A real multi-page fixture file (path, not a Buffer — `tsc` has no Node types).
+  await page.locator("[data-testid=file-input]").setInputFiles("public/fixtures/prose.html");
   await expect(page.getByTestId("counter")).toHaveText(/^1 \/ \d+$/);
 }
 
