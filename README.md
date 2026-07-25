@@ -76,6 +76,9 @@ npm run test:native      # driven smoke: builds and runs the real binary, assert
 npm run test:fileassoc   # builds the .app and opens an .html through Launch
                          # Services, asserting it arrives via RunEvent::Opened
                          # and paginates (macOS bundle; QE-1447)
+npm run test:frag        # runs the pagination invariant suite inside the REAL
+                         # system WKWebView (not Playwright's WebKit), asserting
+                         # no clipping / unreachable across the corpus (QE-1445)
 ```
 
 The invariants asserted for every fixture at multiple window sizes (spec §7):
