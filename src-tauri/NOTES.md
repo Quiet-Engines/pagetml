@@ -91,6 +91,11 @@ export APPLE_ID=<apple-id> APPLE_PASSWORD=<app-specific-password> APPLE_TEAM_ID=
 arm64-only for now (this milestone); a universal build additionally needs
 `rustup target add x86_64-apple-darwin` and `tauri build --target universal-apple-darwin`.
 
+`npm run build:release` wraps this: it fails fast if `APPLE_SIGNING_IDENTITY`
+is unset, runs the signed + notarized `tauri build`, then verifies the result —
+signature, hardened runtime, JIT entitlements, Gatekeeper acceptance, stapled
+notarization ticket. `--verify-only` audits the latest bundle without building.
+
 ## Presentation display handling (QE-1446)
 
 Native macOS fullscreen for presentation, not the webview's element-fullscreen:

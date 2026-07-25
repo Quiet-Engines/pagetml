@@ -15,6 +15,7 @@
     "build:app": "vite build",
     "build:runtime": "vite build --config vite.runtime.config.ts",
     "tauri": "tauri",
+    "build:release": "bash scripts/build-release.sh",
     "test:fileassoc": "bash scripts/verify-fileassoc.sh",
     "test:frag": "bash scripts/verify-frag.sh"
   },
