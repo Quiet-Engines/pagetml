@@ -56,6 +56,33 @@ function boot(transport: Transport): void {
     { passive: true },
   );
 
+  // Forward wheel/trackpad deltas so two-finger swipe and scroll-to-turn work
+  // over the document (QE-1445). A cross-origin iframe swallows wheel events, so
+  // the chrome never sees them; we preventDefault (suppressing the WKWebView
+  // back/forward swipe and any residual scroll) and forward the accumulated
+  // delta once per frame. The chrome owns the deadzone/coalescing.
+  let pendingDx = 0;
+  let pendingDy = 0;
+  let flushQueued = false;
+  window.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      pendingDx += e.deltaX;
+      pendingDy += e.deltaY;
+      if (flushQueued) return;
+      flushQueued = true;
+      requestAnimationFrame(() => {
+        flushQueued = false;
+        const dx = pendingDx;
+        const dy = pendingDy;
+        pendingDx = pendingDy = 0;
+        if (dx !== 0 || dy !== 0) transport.send({ type: "wheel", dx, dy });
+      });
+    },
+    { passive: false },
+  );
+
   transport.onMessage((msg: PagetmlMessage) => {
     if (msg.type !== "command") return;
     const c = msg.command;

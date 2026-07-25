@@ -106,3 +106,35 @@ test("chrome ignores spoofed messages not from the content frame", async ({ page
   await page.waitForTimeout(120);
   await expect(counter).toHaveText(before); // unchanged
 });
+
+test("two-finger swipe over the document turns pages (QE-1445)", async ({ page }) => {
+  await openApp(page);
+  await page.locator("[data-doc=prose]").click();
+  const counter = page.getByTestId("counter");
+  await expect(counter).toHaveText(/^1 \//);
+
+  const frame = page.frames().find((f) => f.url().includes("/app/content.html"))!;
+  // A cross-origin iframe swallows wheel events; the content forwards them so
+  // the chrome turns pages. Horizontal swipe (deltaX) = the trackpad case.
+  // A discrete swipe: one wheel event past the deadzone, then wait past the
+  // burst-coalescing window so the next swipe is a separate turn.
+  const swipe = async (dx: number) => {
+    await frame.evaluate((d) => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaX: d, bubbles: true, cancelable: true }));
+    }, dx);
+    await page.waitForTimeout(300);
+  };
+
+  await swipe(120); // swipe forward
+  await expect(counter).toHaveText(/^2 \//);
+
+  await swipe(120);
+  await expect(counter).toHaveText(/^3 \//);
+
+  await swipe(-120); // swipe back
+  await expect(counter).toHaveText(/^2 \//);
+
+  // Below the deadzone → no turn.
+  await swipe(10);
+  await expect(counter).toHaveText(/^2 \//);
+});

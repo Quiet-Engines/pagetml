@@ -40,6 +40,18 @@ export interface ActivityMessage {
   type: "activity";
 }
 
+/** Engine → chrome: raw wheel/trackpad delta from inside the content frame. A
+ *  cross-origin iframe swallows wheel events, so the frame forwards them (the
+ *  content also `preventDefault`s, suppressing the WKWebView back/forward swipe)
+ *  and the chrome turns pages — making two-finger swipe and scroll-to-turn work
+ *  over the document, not just the chrome (QE-1445). */
+export interface WheelMessage {
+  v: typeof PROTOCOL_VERSION;
+  type: "wheel";
+  dx: number;
+  dy: number;
+}
+
 /** Chrome → engine: deliver a document opened by the chrome (dropped or picked
  *  file) into the content frame, when it wasn't loaded via a `?fixture=`/
  *  `pagetml://` URL. The frame grafts this HTML and paginates it (QE-1428). */
@@ -73,7 +85,12 @@ export interface CommandMessage {
     | { name: "unlock" };
 }
 
-export type EngineToChrome = StateMessage | AnchorMessage | OpenExternalMessage | ActivityMessage;
+export type EngineToChrome =
+  | StateMessage
+  | AnchorMessage
+  | OpenExternalMessage
+  | ActivityMessage
+  | WheelMessage;
 export type ChromeToEngine = CommandMessage | LoadDocumentMessage | ReadyMessage;
 export type PagetmlMessage = EngineToChrome | ChromeToEngine;
 
@@ -86,7 +103,8 @@ export type Outgoing =
   | Omit<ActivityMessage, "v">
   | Omit<CommandMessage, "v">
   | Omit<LoadDocumentMessage, "v">
-  | Omit<ReadyMessage, "v">;
+  | Omit<ReadyMessage, "v">
+  | Omit<WheelMessage, "v">;
 
 /** Narrowing guard for anything arriving over postMessage. */
 export function isPagetmlMessage(data: unknown): data is PagetmlMessage {
