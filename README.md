@@ -73,6 +73,9 @@ npm run test:shell       # headless Rust unit tests (cargo test): traversal
 npm run test:native      # driven smoke: builds and runs the real binary, asserts
                          # a document actually boots the runtime and paginates
                          # (needs a desktop/display; uses the store as the oracle)
+npm run test:fileassoc   # builds the .app and opens an .html through Launch
+                         # Services, asserting it arrives via RunEvent::Opened
+                         # and paginates (macOS bundle; QE-1447)
 ```
 
 The invariants asserted for every fixture at multiple window sizes (spec §7):

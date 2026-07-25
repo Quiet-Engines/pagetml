@@ -17,9 +17,22 @@ the `open` menu event → `pick_and_open` (the same dialog the dropzone uses),
 plus standard App/Edit/Window items. Verified via the Accessibility API
 (menu structure + the Open event reaching the handler).
 
-Still native-unverified: OS file association end-to-end (needs a bundled
-build; the `RunEvent::Opened` handler is in place) and the QE-1431 follow-up
-below.
+OS file association is now verified end-to-end against a real `.app` bundle
+(QE-1447, `npm run test:fileassoc`): a `.html` opened through Launch Services
+reaches the app via `RunEvent::Opened`, opens, and paginates. This caught a
+startup-race bug — `RunEvent::Opened` can fire before `setup()` initializes
+the store, so `open_path` now initializes it itself (`ensure_store_loaded`,
+idempotent) instead of assuming setup won the race; otherwise the opened
+document was added to state that setup then clobbered with the empty on-disk
+load, and the file opened into a void.
+
+Packaging (QE-1448): `Entitlements.plist` (hardened-runtime JIT for WebKit) +
+`bundle.macOS` (minimumSystemVersion, entitlements). `npx tauri build`
+produces a self-contained `.app` (embedded assets — works offline) and `.dmg`.
+Developer ID signing + notarization are wired via env at build time (see the
+signing note below); local builds are ad-hoc signed.
+
+Still native-unverified: dock-icon drag-drop, and the QE-1431 follow-up below.
 
 **WKWebView CSP finding (QE-1431):** WebKit does not stop `connect-src`
 traffic — a `no-cors` fetch leaves despite the CSP header (see README go/no-go
@@ -53,9 +66,30 @@ use `cargo tauri dev` instead.
    editing runtime sources, re-run `build:runtime`; cargo picks it up next build.
 3. **Frontend build layout** — `dist/app/index.html` confirmed.
 4. **Start-screen sample docs** — gated behind `!isNative()`.
-5. **macOS "Open" event** — `RunEvent::Opened` handled in `run()` (bundled-app
-   verification pending, see status above).
+5. **macOS "Open" event** — `RunEvent::Opened` handled in `run()`; verified
+   against a real bundle (see status above, `npm run test:fileassoc`).
 6. **Tauri v2 API drift** — none; compiled clean against tauri 2.11.
+
+## macOS signing & notarization (QE-1448)
+
+A local `npx tauri build` produces an **ad-hoc-signed** `.app`/`.dmg` — fine for
+local testing (file association, launch), not for distribution. For a signed +
+notarized build, provide these in the environment and re-run `tauri build`
+(Tauri v2 reads them; the config carries the entitlements + hardened runtime):
+
+```bash
+# The Developer ID Application cert must be in the login keychain.
+export APPLE_SIGNING_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"
+# Notarization — either an App Store Connect API key…
+export APPLE_API_ISSUER=<issuer-uuid>
+export APPLE_API_KEY=<key-id>
+export APPLE_API_KEY_PATH=/path/to/AuthKey_<key-id>.p8
+# …or an Apple ID + app-specific password:
+export APPLE_ID=<apple-id> APPLE_PASSWORD=<app-specific-password> APPLE_TEAM_ID=<TEAMID>
+```
+
+arm64-only for now (this milestone); a universal build additionally needs
+`rustup target add x86_64-apple-darwin` and `tauri build --target universal-apple-darwin`.
 
 ## Remaining TODO
 

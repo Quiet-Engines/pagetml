@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hardened runtime for Developer ID notarization (QE-1448). WebKit's
+       JavaScript JIT needs writable-executable memory, so these two are
+       required for the WKWebView to run under the hardened runtime. The app
+       is NOT App-Sandboxed (Developer ID distribution, not Mac App Store), so
+       no sandbox file/network entitlements are needed — file access is
+       unrestricted for a signed Developer ID app. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>
