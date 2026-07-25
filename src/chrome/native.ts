@@ -95,3 +95,15 @@ export function nativeOpenRecent(index: number): void {
 export function nativeSetPosition(anchor: Anchor): void {
   void tauri()?.core.invoke("set_position", { anchor });
 }
+
+/** Enter/leave real macOS fullscreen for presentation (QE-1446). */
+export function nativeSetFullscreen(on: boolean): void {
+  void tauri()?.core.invoke("set_native_fullscreen", { on });
+}
+
+/** Subscribe to native fullscreen transitions. Fires with the new fullscreen
+ *  state whenever the window resizes — including when macOS leaves fullscreen
+ *  because the presenting display disconnected (QE-1446). No-op in a browser. */
+export function onNativeFullscreenChanged(cb: (fullscreen: boolean) => void): void {
+  void tauri()?.event.listen("fullscreen-changed", (e) => cb(e.payload === true));
+}

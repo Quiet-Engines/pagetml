@@ -91,6 +91,23 @@ export APPLE_ID=<apple-id> APPLE_PASSWORD=<app-specific-password> APPLE_TEAM_ID=
 arm64-only for now (this milestone); a universal build additionally needs
 `rustup target add x86_64-apple-darwin` and `tauri build --target universal-apple-darwin`.
 
+## Presentation display handling (QE-1446)
+
+Native macOS fullscreen for presentation, not the webview's element-fullscreen:
+the chrome calls `set_native_fullscreen` (→ `window.set_fullscreen`) in the
+native build; the browser build keeps HTML5 `requestFullscreen`. There is no
+dedicated fullscreen event, so the window's `Resized` handler emits
+`fullscreen-changed` with `is_fullscreen()`. The chrome uses that to (a)
+re-lock the engine at the display resolution once fullscreen enters, and (b)
+drop back to reading mode when macOS *leaves* fullscreen — Esc, the green
+button, or the presenting display disconnecting (the M3 disconnect rule). A
+seen-fullscreen guard ignores the transient `false` during the enter animation.
+
+Verified: chrome logic in `tests/native.spec.ts` (mocked bridge); the
+`fullscreen-changed` emit confirmed firing against a real bundle when the
+window enters fullscreen. **Manual QA (§7):** notch handling, and the physical
+display-disconnect (can't be simulated headlessly).
+
 ## Remaining TODO
 
 - **`WKContentRuleList` network gate** (see CSP finding above).

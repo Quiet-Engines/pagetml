@@ -16,8 +16,10 @@ import {
   nativeOpenDialog,
   nativeOpenRecent,
   nativeRecentNames,
+  nativeSetFullscreen,
   nativeSetPosition,
   nativeSetRemote,
+  onNativeFullscreenChanged,
   type NativeDoc,
 } from "./native.js";
 
@@ -110,6 +112,10 @@ class Chrome {
   private remoteOn = false;
   // --- presentation mode (QE-1437..1444) ---
   private presenting = false;
+  /** In native presentation, whether macOS has actually entered fullscreen.
+   *  Guards against acting on a transient `fullscreen-changed(false)` during
+   *  the enter animation, and gates the display-disconnect exit (QE-1446). */
+  private nativeFullscreen = false;
   private blackout: "none" | "black" | "white" = "none";
   private jumpBuffer = "";
   private cursorTimer?: number;
@@ -133,6 +139,9 @@ class Chrome {
     // In the Tauri shell, load documents the OS opens (dialog / file
     // association / CLI). Inert in the browser build.
     initNativeShell((doc) => this.openNative(doc));
+    // Native fullscreen transitions during presentation (QE-1446). Inert in a
+    // browser. Registered once so there's a single listener.
+    onNativeFullscreenChanged((fs) => this.onNativeFullscreen(fs));
   }
 
   /** Open a document served natively over pagetml:// (Tauri shell). */
@@ -563,14 +572,38 @@ class Chrome {
     this.send({ name: "lock" }); // engine repaginates once at this size, then freezes
     this.showHud();
     this.startCursorAutoHide();
-    // Fullscreen is best-effort — presentation works logically even if denied.
-    this.els.reading.requestFullscreen?.().catch(() => {});
-    document.addEventListener("fullscreenchange", this.onFullscreenChange);
+    if (isNative()) {
+      // Real macOS fullscreen (own Space). The window resizes to the display;
+      // onNativeFullscreen re-locks at that size and exits presentation if
+      // macOS later leaves fullscreen (QE-1446).
+      nativeSetFullscreen(true);
+    } else {
+      // Browser: element fullscreen, best-effort — presentation works logically
+      // even if denied.
+      this.els.reading.requestFullscreen?.().catch(() => {});
+      document.addEventListener("fullscreenchange", this.onFullscreenChange);
+    }
+  }
+
+  /** Native fullscreen transition during presentation (QE-1446). */
+  private onNativeFullscreen(fullscreen: boolean): void {
+    if (!this.presenting) return;
+    if (fullscreen) {
+      // The window is now display-sized; re-lock so pagination is frozen at the
+      // presenting display's resolution, not the windowed size.
+      this.nativeFullscreen = true;
+      this.send({ name: "lock" });
+    } else if (this.nativeFullscreen) {
+      // We were fullscreen and macOS left it — Esc, the green button, or the
+      // presenting display disconnecting. Drop back to reading mode (M3 rule).
+      this.exitPresentation();
+    }
   }
 
   private exitPresentation(): void {
     if (!this.presenting) return;
     const els = this.els;
+    const wasNative = isNative();
     this.cleanupPresentation();
     if (els) {
       els.reading.classList.remove("presenting", "cursor-hidden");
@@ -579,6 +612,8 @@ class Chrome {
       els.blackout.hidden = true;
       els.jump.hidden = true;
     }
+    // Leave macOS fullscreen (no-op if we're here because macOS already left it).
+    if (wasNative) nativeSetFullscreen(false);
     // Engine unlocks and reflows back to the equivalent content position (§3.3).
     this.send({ name: "unlock" });
   }
@@ -587,6 +622,7 @@ class Chrome {
    *  teardown, where the frame is going away anyway. */
   private cleanupPresentation(): void {
     this.presenting = false;
+    this.nativeFullscreen = false;
     this.blackout = "none";
     this.jumpBuffer = "";
     if (this.cursorTimer) window.clearTimeout(this.cursorTimer);
