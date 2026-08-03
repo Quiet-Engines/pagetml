@@ -1,6 +1,6 @@
 [package]
 name = "pagetml"
-version = "0.1.0"
+version = "1.0.0"
 description = "PageTML — a paginated HTML reader"
 authors = ["Quiet Engines"]
 edition = "2021"
