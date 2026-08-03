@@ -2,7 +2,7 @@
   "name": "pagetml",
   "version": "1.0.0",
   "private": true,
-  "description": "PageTML \u2014 a paginated HTML reader for Mac and Windows. Milestone 1: the shared pagination engine.",
+  "description": "PageTML \u2014 a paginated HTML reader and presenter for macOS.",
   "type": "module",
   "scripts": {
     "dev": "vite",

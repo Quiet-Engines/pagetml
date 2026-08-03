@@ -30,9 +30,13 @@ membership ($99/yr) and:
 
 ## Cutting a release
 
-1. **Bump the version** in both files (keep them in sync):
+1. **Bump the version** in all three source files (keep them in sync):
    - `package.json` → `"version"`
    - `src-tauri/tauri.conf.json` → `"version"`
+   - `src-tauri/Cargo.toml` → `version`
+
+   `src-tauri/Cargo.lock`'s `pagetml` entry updates automatically on the next
+   `cargo`/`tauri build` — commit that change too.
 
    Commit on a branch, open a PR, merge. Tag the merge commit `v<version>`.
 
