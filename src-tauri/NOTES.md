@@ -48,6 +48,17 @@ npm install                      # pulls @tauri-apps/cli + api (added to package
 npm run tauri dev                # builds src-tauri + launches the window over the Vite dev server
 ```
 
+`cargo` must be on `PATH` — the Tauri CLI shells out to `cargo metadata`, and a
+shell that hasn't sourced the rustup profile fails with
+`failed to run 'cargo metadata' … No such file or directory`. If `which cargo`
+comes up empty, prefix the command:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH" && npm run tauri dev
+```
+
+This applies to every cargo-backed script too (`test:shell`, `build:release`).
+
 If `npm run tauri` can't find the CLI, `cargo install tauri-cli --version '^2'` and
 use `cargo tauri dev` instead.
 
