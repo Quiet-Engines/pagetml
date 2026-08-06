@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest something PageTML should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Already on the list and not worth filing: Intel Mac builds, Windows,
+        auto-update, opening live URLs, and EPUB.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        Describe the situation rather than the feature — what you're presenting
+        or reading, and where PageTML gets in the way.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Your proposed solution, if you have one in mind.

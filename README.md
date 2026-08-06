@@ -131,5 +131,15 @@ differs from it — via `npm run test:frag`.
 
 ### Releasing
 
-See **[docs/RELEASING.md](docs/RELEASING.md)** for cutting a signed, notarized
-GitHub release.
+- **[docs/RELEASING.md](docs/RELEASING.md)** — cutting a signed, notarized build.
+- **[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)** — getting that build in front
+  of people: the public distribution repo, the launch checklist, and what has to
+  be true before you post about it.
+- **[CHANGELOG.md](CHANGELOG.md)** — what's in each version.
+
+## License
+
+PageTML is **source-available proprietary software, not open source**. The
+application is free to use, personally and commercially; the source is readable
+but carries no rights to copy, modify, or redistribute. See
+**[LICENSE.md](LICENSE.md)**.
