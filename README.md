@@ -140,6 +140,8 @@ differs from it — via `npm run test:frag`.
 ## License
 
 PageTML is **source-available proprietary software, not open source**. The
-application is free to use, personally and commercially; the source is readable
-but carries no rights to copy, modify, or redistribute. See
+source is readable but carries no rights to copy, modify, or redistribute.
+
+**This version is free** to use, personally and commercially, and stays free for
+anyone who has it. Later versions may be offered under different terms. See
 **[LICENSE.md](LICENSE.md)**.

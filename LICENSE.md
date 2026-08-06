@@ -8,9 +8,18 @@ been reviewed by a lawyer — see *Before you publish this* at the bottom.
 
 ## 1. What you may do
 
-Quiet Engines grants you a personal, non-exclusive, non-transferable, revocable
-license to install and use the PageTML application on any Mac you own or
-control, for personal or commercial purposes, at no charge.
+**This version of PageTML is free.** Quiet Engines grants you a personal,
+non-exclusive, non-transferable license to install and use **the version of the
+PageTML application accompanying this license** on any Mac you own or control,
+for personal or commercial purposes, at no charge.
+
+That grant is permanent for this version — it does not expire, and it is not
+revoked by anything Quiet Engines does later, except as set out in §7.
+
+**Future versions may be offered under different terms**, including paid ones.
+PageTML is free during its early releases while it finds its audience; nothing
+here promises that later versions will be. If a future version is paid, this
+version remains yours to keep using under this license.
 
 Documents you open, create, or present with PageTML are entirely yours. This
 license says nothing about them.

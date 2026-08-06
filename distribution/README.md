@@ -84,8 +84,11 @@ you can — the layout problem usually lives in the document.
 
 ## Source and license
 
-PageTML is source-available proprietary software, not open source. The
-application is free to use, personally and commercially.
-See [LICENSE.md](LICENSE.md).
+PageTML is source-available proprietary software, not open source — you can read
+the code, but it carries no rights to copy, modify, or redistribute.
+
+**This version is free** to use, personally and commercially, and stays free for
+anyone who has it. PageTML is free during its early releases; later versions may
+be offered under different terms. See [LICENSE.md](LICENSE.md).
 
 ⚠️ *Contact: add a support email.* · ⚠️ *Website: add the PageTML site URL.*
