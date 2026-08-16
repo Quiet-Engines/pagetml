@@ -11,21 +11,21 @@ before you point strangers at it, and the order to do it in.
 ## The thing that blocks everything else
 
 **A private repo's Releases page is not publicly downloadable.** Release assets
-inherit repo visibility — an anonymous visitor gets a 404, not a download. So
-"publish a GitHub release from `Quiet-Engines/pagetml`" does not work while the
-repo is private, and you chose to keep it private.
+inherit repo visibility — an anonymous visitor gets a 404, not a download. There
+is no per-asset public flag, so "private repo, public releases" is not something
+GitHub offers.
 
-The standard fix, used by most closed-source apps that distribute on GitHub: a
-**second, public repo** that holds no source — only the releases, the user
-docs, and the issue tracker.
+**Decision (QE-1713): `Quiet-Engines/pagetml` goes public.** One repo holds the
+source, the user docs, the releases, and the issue tracker. The website's
+existing links — nav, footer, and both Download buttons targeting
+`releases/latest` — resolve without any change.
 
-```
-Quiet-Engines/pagetml         private   the actual code (this repo)
-Quiet-Engines/pagetml-app     public    README, help docs, LICENSE, releases, issues
-```
+Public ≠ open source. The licence is what restricts reuse, not the repo flag;
+see [`../LICENSE.md`](../LICENSE.md).
 
-Everything below assumes that split. `distribution/` in this repo holds the
-files that public repo needs, ready to copy.
+The alternative, had the repo stayed private, was a second public repo holding
+no source. It isn't needed, and the files that would have gone there now live at
+the repo root.
 
 ---
 
@@ -99,39 +99,38 @@ lists — open a real `.html`, drag-drop, two-finger swipe, present on an extern
 display and disconnect it mid-presentation. A headless build can't check any of
 that, and each one is a launch-day bug report if it's broken.
 
-### 5. Create the public repo
+### 5. Make the repo public
 
-**New repository ▸ `pagetml-app` ▸ Public.** No README, no `.gitignore`, no
-license — you're supplying those.
+Everything a public visitor needs is already at the repo root: `README.md`
+(user-facing), `LICENSE.md`, `SECURITY.md`, `CHANGELOG.md`, and
+`.github/ISSUE_TEMPLATE/`. Developer documentation lives in
+[`development.md`](development.md).
 
-Description: *A paginated HTML reader and presenter for macOS.*
-Topics: `macos`, `html`, `presentation`, `reader`, `pagination`, `tauri`,
-`slides`, `epub`.
-
-Then populate it from this repo:
+**Before flipping it**, fill in the `⚠️` placeholders — they're greppable:
 
 ```bash
-git clone https://github.com/Quiet-Engines/pagetml-app.git
-cd pagetml-app
-
-cp -r /path/to/pagetml/distribution/. .     # README, SECURITY.md, issue templates
-cp    /path/to/pagetml/LICENSE.md .
-cp    /path/to/pagetml/CHANGELOG.md .
-mkdir -p docs && cp /path/to/pagetml/docs/help.md docs/
-
-# Now edit: every ⚠️ placeholder in README.md and SECURITY.md is a real
-# decision — support email, security email, website URL, and the screenshot.
-
-git add . && git commit -m "PageTML 1.0.0 distribution" && git push
+grep -rn '⚠️' README.md SECURITY.md
 ```
 
-In its **Settings**: turn Issues **on**, turn Wikis and Projects **off**, and
-consider turning Discussions **on** (a good place for "my document paginates
-weirdly" threads that aren't bugs).
+Support email, security contact, website URL, and the screenshot. A public repo
+whose README has visible TODO markers reads as abandoned.
+
+Then: **Settings ▸ General ▸ Danger Zone ▸ Change visibility ▸ Make public.**
+
+Going public exposes the **entire git history across every branch**, not just
+`main`. This history was audited on 2026-08-06 — no `.env`, `.p8`, `.p12`, PEM,
+or certificate was ever committed on any branch, and every credential-shaped
+string is a documentation placeholder. **Re-run that check if anything has been
+committed since**, because rewriting history after publication doesn't recall
+forks, clones, or archive services.
+
+While you're in Settings: Issues **on**, Wikis and Projects **off**, and
+consider Discussions **on** (a good home for "my document paginates weirdly"
+threads that aren't bugs).
 
 ### 6. Publish the release
 
-**Releases ▸ Draft a new release** on `pagetml-app`.
+**Releases ▸ Draft a new release.**
 
 - Tag `v1.0.0`, created against that repo's `main`.
 - Title: `PageTML 1.0.0`.
@@ -146,10 +145,12 @@ The README's `[Download](../../releases/latest)` link resolves once this exists.
 
 Do not skip this. Open a **private browsing window**, logged out of GitHub:
 
-1. Load `https://github.com/Quiet-Engines/pagetml-app` — does the page render,
-   with the screenshot?
+1. Load `https://github.com/Quiet-Engines/pagetml` — does the page render, with
+   the screenshot?
 2. Click Download — does the `.dmg` actually download while logged out? *(This
    is the check that catches the private-repo trap.)*
+3. Load `quiet-engines.com/pagetml` and click both Download buttons — those have
+   been 404ing since 25 Jul (QE-1556) and this is what fixes them.
 3. Ideally on a second Mac you've never built on: mount it, drag to
    Applications, open. **No Gatekeeper warning** is the pass condition. If you
    see "damaged and can't be opened," notarization didn't take — fix it before
