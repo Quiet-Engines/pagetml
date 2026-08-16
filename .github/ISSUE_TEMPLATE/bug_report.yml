@@ -10,6 +10,15 @@ body:
         lives in the document.
 
   - type: textarea
+    id: document
+    attributes:
+      label: The document
+      description: >
+        Drag the .html file in here (zip it if GitHub rejects the extension).
+        If you can't share it, describe what it contains — a Google Docs export,
+        a Markdown render, an app-style page, tall images, tables?
+
+  - type: textarea
     id: what-happened
     attributes:
       label: What happened?
@@ -27,21 +36,22 @@ body:
       required: true
 
   - type: input
-    id: macos
+    id: display
     attributes:
-      label: macOS version
-      placeholder: "14.5 (Sonoma), M2"
+      label: Window and display
+      description: >
+        Pagination depends on window size, so this matters more than the OS
+        version. Roughly how big was the window, and were you on the built-in
+        screen or an external one?
+      placeholder: "Half-width on a 14in MacBook Pro; also tried fullscreen on a 4K external"
     validations:
       required: true
 
-  - type: textarea
-    id: document
+  - type: input
+    id: macos
     attributes:
-      label: The document
-      description: >
-        Drag the .html file in here (zip it if GitHub rejects the extension).
-        If you can't share it, describe what it contains — a Google Docs export,
-        a Markdown render, an app-style page, tall images, tables?
+      label: macOS version and chip
+      placeholder: "14.5 (Sonoma), M2"
 
   - type: checkboxes
     id: remote

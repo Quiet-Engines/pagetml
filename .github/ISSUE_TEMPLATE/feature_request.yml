@@ -5,8 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Already on the list and not worth filing: Intel Mac builds, Windows,
-        auto-update, opening live URLs, and EPUB.
+        Known and not planned for now — no need to file these: everything listed
+        under [Not supported](https://github.com/Quiet-Engines/pagetml#not-supported)
+        in the README.
 
   - type: textarea
     id: problem

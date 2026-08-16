@@ -3,23 +3,19 @@
 Copyright © 2026 Quiet Engines. All rights reserved.
 
 PageTML is **source-available proprietary software**, not open source. This
-document is a plain-language license for the compiled application. It has not
-been reviewed by a lawyer — see *Before you publish this* at the bottom.
+document is a plain-language license for the compiled application.
 
 ## 1. What you may do
 
-**This version of PageTML is free.** Quiet Engines grants you a personal,
-non-exclusive, non-transferable license to install and use **the version of the
-PageTML application accompanying this license** on any Mac you own or control,
-for personal or commercial purposes, at no charge.
+Quiet Engines grants you a personal, non-exclusive, non-transferable license to
+install and use **the version of the PageTML application accompanying this
+license** on any Mac you own or control, for personal or commercial purposes,
+**at no charge**.
 
-That grant is permanent for this version — it does not expire, and it is not
-revoked by anything Quiet Engines does later, except as set out in §7.
-
-**Future versions may be offered under different terms**, including paid ones.
-PageTML is free during its early releases while it finds its audience; nothing
-here promises that later versions will be. If a future version is paid, this
-version remains yours to keep using under this license.
+That grant is permanent for this version — it does not expire, and nothing Quiet
+Engines does later revokes it, except as set out in §7. Future versions may be
+offered under different terms, including paid ones; if one is, this version
+remains yours to keep using under this license.
 
 Documents you open, create, or present with PageTML are entirely yours. This
 license says nothing about them.
@@ -74,16 +70,19 @@ PageTML is built on open-source components — including Tauri, and the Rust and
 npm crates/packages listed in `src-tauri/Cargo.lock` and `package-lock.json` —
 each under its own license. Nothing here overrides those licenses.
 
----
+## 9. Contact and governing law
 
-## Before you publish this
+Questions about this license go to ⚠️ *(contact address)*.
 
-Two things to settle before this file goes in front of users:
+This license is governed by the laws of ⚠️ *(jurisdiction)*, without regard to
+its conflict-of-law rules.
 
-1. **Have a lawyer read it.** This is a reasonable-shape EULA, not legal advice.
-   Consumer-protection law in the EU, UK, and Australia limits how far §5 and §6
-   can actually reach, and the enforceability of §2's reverse-engineering clause
-   varies by jurisdiction.
-2. **Name the legal entity.** "Quiet Engines" needs to be the registered entity
-   (LLC, Ltd., etc.) that actually holds the copyright, and a contact address or
-   email belongs in §7. Add a governing-law clause naming your jurisdiction.
+<!--
+  Before publishing: replace both markers above, and confirm that "Quiet Engines"
+  in the copyright line is the registered entity (LLC, Ltd., etc.) that actually
+  holds the copyright — §2 relies on that entity to restrict redistribution.
+  This EULA has not had legal review; consumer-protection law in the EU, UK, and
+  Australia limits how far §5 and §6 reach, and §2's reverse-engineering clause
+  varies in enforceability by jurisdiction.
+-->
+

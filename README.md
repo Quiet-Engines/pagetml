@@ -6,10 +6,14 @@ PageTML opens a local `.html` file and lays it out as discrete, navigable
 pages — like a PDF reader or a slide deck. Built for presenting to an audience
 and for distraction-free reading.
 
-⚠️ *Add a screenshot or a short demo GIF here. This is the single highest-impact
-thing on the page — most people decide from it alone.*
+⚠️ *Add a screenshot or a short demo GIF here — a page turn and presentation mode.
+Most people decide from it alone.*
 
 [**Download for macOS →**](../../releases/latest)
+
+Requires **macOS 12 (Monterey) or later** on **Apple Silicon** — an M1 or newer
+Mac. Intel Macs are not supported. *(Apple menu ▸ About This Mac shows which you
+have.)*
 
 ---
 
@@ -40,8 +44,6 @@ renders exactly as a browser would render it; it just arrives in pages.
 
 ## Install
 
-Requires **macOS 12 (Monterey) or later** on **Apple Silicon**.
-
 1. Download the latest `PageTML_*.dmg` from [Releases](../../releases/latest).
 2. Open the `.dmg` and drag **PageTML** to your Applications folder.
 3. Open a document: right-click a `.html` file → **Open With ▸ PageTML**, use
@@ -54,22 +56,24 @@ Gatekeeper warnings.
 
 | Action | Keys |
 | --- | --- |
-| Next page | `→` `↓` `Space` `Page Down` · scroll · swipe · click right edge |
-| Previous page | `←` `↑` `Shift+Space` `Page Up` · scroll · swipe · click left edge |
-| First / last page | `Home` / `End` |
-| Enter presentation | `F5` or `⌘⇧F` |
+| Next / previous page | `→` / `←` · `Space` · scroll · swipe · click a page edge |
+| Enter presentation | `F5` |
 | Jump to page *(presenting)* | type the number, then `Enter` |
 | Black / white screen *(presenting)* | `B` / `W` |
 | Exit | `Esc` |
 
-Full guide: [**docs/help.md**](docs/help.md).
+Every binding, including the presentation-mode set:
+[**docs/help.md**](docs/help.md).
 
-## Not in this version
+## Not supported
 
 Intel Macs · Windows · auto-update · live URLs · EPUB · authored slide decks.
 
-Page counts differ between machines and window sizes — that's inherent to
-auto-fit pagination, and exactly why presentation mode locks it.
+**Why not just export a PDF?** A PDF's pages are fixed at export time. PageTML
+paginates live against your actual window, so the same document reflows to fit a
+laptop, a projector, or a resized window — and presentation mode freezes the
+boundaries only while you're presenting. Page counts differing between machines
+is the flip side of that, and exactly why presentation mode locks them.
 
 ## Bugs and requests
 
@@ -81,20 +85,15 @@ Found a way out of the document sandbox? Please report it privately — see
 
 ## How it works
 
-The source is here to read. The short version: the document body is wrapped in a
-CSS multi-column box whose column width is the viewport width, so **each column
-is one page** and the browser's own line-breaking and fragmentation does the
-layout. Page turns translate the flow horizontally.
+The source is here to read. The document body is wrapped in a CSS multi-column
+box whose column width is the viewport width, so **each column is one page** and
+the browser's own line-breaking and fragmentation does the layout. Page turns
+translate the flow horizontally.
 
-Two decisions carry most of the weight. **All measurement goes through the flow,
-not the viewport** — an element's rect and the flow's rect are both shifted by
-the flow's current transform, so measuring child-relative-to-flow cancels it
-exactly, even mid page-turn. And **position is a content anchor, never a page
-number** — page numbers are a function of window size, so a CFI-like path +
-offset is what survives a resize or a restart.
-
-Build instructions, the test layers, and the cross-engine validation notes:
-**[docs/development.md](docs/development.md)**.
+Two decisions carry most of the weight — measurement goes through the flow rather
+than the viewport, and position is stored as a content anchor rather than a page
+number. Both are written up, along with build instructions and the test layers,
+in **[docs/development.md](docs/development.md)**.
 
 ## Source and license
 
@@ -102,7 +101,8 @@ PageTML is source-available proprietary software, not open source — you can re
 the code, but it carries no rights to copy, modify, or redistribute.
 
 **This version is free** to use, personally and commercially, and stays free for
-anyone who has it. PageTML is free during its early releases; later versions may
-be offered under different terms. See [LICENSE.md](LICENSE.md).
+anyone who has it. See [LICENSE.md](LICENSE.md).
 
-⚠️ *Contact: add a support email.* · ⚠️ *Website: add the PageTML site URL.*
+## Contact
+
+⚠️ *Add a support email and the PageTML website URL.*

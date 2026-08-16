@@ -9,8 +9,8 @@ Email ⚠️ `security@example.com` *(replace with a real address)*. Please do n
 open a public issue for a vulnerability.
 
 Include what you did, what happened, and the document that triggered it if
-there is one. Expect an acknowledgement within a few days. Please give us a
-reasonable window to ship a fix before disclosing publicly.
+there is one. PageTML is a small project, so please give us a reasonable window
+to ship a fix before disclosing publicly.
 
 ## The security model
 
@@ -44,4 +44,6 @@ app context, or reading another document's stored state or position.
 
 ## Supported versions
 
-Only the latest release receives security fixes.
+Security fixes ship in the latest release only. Older versions stay licensed to
+you (see [LICENSE.md](LICENSE.md)) but do not receive patches — update to pick
+one up.

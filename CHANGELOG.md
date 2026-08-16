@@ -3,9 +3,11 @@
 All notable changes to PageTML are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
-## [1.0.0] — unreleased
+## [1.0.0]
 
-First public release. macOS 12 (Monterey) or later, Apple Silicon.
+First public release. Requires macOS 12 (Monterey) or later on Apple Silicon.
+
+⚠️ *Set the release date here when the tag is cut.*
 
 ### Reading
 

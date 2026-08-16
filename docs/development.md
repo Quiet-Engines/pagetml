@@ -90,7 +90,6 @@ differs from it — via `npm run test:frag`.
 
 ## Releasing
 
-- **[RELEASING.md](RELEASING.md)** — cutting a signed, notarized build.
-- **[DISTRIBUTION.md](DISTRIBUTION.md)** — getting that build in front of people:
-  the launch checklist, and what has to be true before you post about it.
+- **[RELEASING.md](RELEASING.md)** — cutting a signed, notarized build and
+  publishing it.
 - **[../CHANGELOG.md](../CHANGELOG.md)** — what's in each version.
