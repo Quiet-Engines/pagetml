@@ -38,6 +38,9 @@ membership ($99/yr) and:
    `src-tauri/Cargo.lock`'s `pagetml` entry updates automatically on the next
    `cargo`/`tauri build` — commit that change too.
 
+   In the same commit, date the version's `CHANGELOG.md` heading —
+   `## [<version>] — YYYY-MM-DD` — and add its comparison link at the bottom.
+
    Commit on a branch, open a PR, merge. Tag the merge commit `v<version>`.
 
 2. **Export the signing environment** (see `src-tauri/NOTES.md`), e.g.:
@@ -96,15 +99,11 @@ membership ($99/yr) and:
 One-time work, not per-release. Step 6 above assumes the repo is already public;
 these are what gets it there.
 
-1. **Fill every placeholder.** All four user-facing docs carry them:
+1. **Fill any remaining placeholder.** Should report only the README screenshot:
 
    ```bash
    grep -rn '⚠️' README.md SECURITY.md LICENSE.md CHANGELOG.md
    ```
-
-   `LICENSE.md` needs the registered legal entity and a governing-law clause,
-   `SECURITY.md` a real contact address, `README.md` a support email and a
-   screenshot, `CHANGELOG.md` the release date.
 
 2. **Audit the git history for secrets.** Making a repo public exposes every
    commit on every branch, not just `main`, and rewriting history afterwards does
@@ -118,8 +117,12 @@ these are what gets it there.
 
    Empty output is the pass condition.
 
-3. **Tidy the repo settings** — default branch, description, and topics — and
-   delete merged branches, so the public landing page reflects the current state.
+3. **Set up the repo settings:**
+   - **Private vulnerability reporting** on (Settings ▸ Security). `SECURITY.md`
+     sends reporters to that form, so it must exist before the repo is public or
+     the link 404s.
+   - Default branch, description, and topics correct.
+   - Merged branches deleted, so the landing page reflects the current state.
 
 4. **Flip visibility**, then run step 6's logged-out download check.
 

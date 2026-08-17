@@ -5,8 +5,10 @@ readers'. If you find a way around it, please tell us.
 
 ## Reporting a vulnerability
 
-Email ⚠️ `security@example.com` *(replace with a real address)*. Please do not
-open a public issue for a vulnerability.
+Use GitHub's **[private vulnerability reporting](../../security/advisories/new)**
+— the *Report a vulnerability* button under this repository's **Security** tab.
+It opens a private thread visible only to the maintainers. Please don't open a
+public issue for a vulnerability.
 
 Include what you did, what happened, and the document that triggered it if
 there is one. PageTML is a small project, so please give us a reasonable window

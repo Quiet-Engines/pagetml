@@ -70,19 +70,20 @@ PageTML is built on open-source components — including Tauri, and the Rust and
 npm crates/packages listed in `src-tauri/Cargo.lock` and `package-lock.json` —
 each under its own license. Nothing here overrides those licenses.
 
-## 9. Contact and governing law
+## 9. Questions
 
-Questions about this license go to ⚠️ *(contact address)*.
-
-This license is governed by the laws of ⚠️ *(jurisdiction)*, without regard to
-its conflict-of-law rules.
+Questions about this license: open an issue at
+<https://github.com/Quiet-Engines/pagetml/issues>.
 
 <!--
-  Before publishing: replace both markers above, and confirm that "Quiet Engines"
-  in the copyright line is the registered entity (LLC, Ltd., etc.) that actually
-  holds the copyright — §2 relies on that entity to restrict redistribution.
-  This EULA has not had legal review; consumer-protection law in the EU, UK, and
-  Australia limits how far §5 and §6 reach, and §2's reverse-engineering clause
-  varies in enforceability by jurisdiction.
+  Outstanding before this EULA is relied on (tracked in QE-1714):
+  - Confirm "Quiet Engines" in the copyright line is the registered entity
+    (LLC, Ltd., etc.) that actually holds the copyright — §2 relies on that
+    entity to restrict redistribution.
+  - Add a governing-law clause naming the jurisdiction. Deliberately omitted
+    for now rather than guessed.
+  - Legal review. Consumer-protection law in the EU, UK, and Australia limits
+    how far §5 and §6 reach, and §2's reverse-engineering clause varies in
+    enforceability by jurisdiction.
 -->
 

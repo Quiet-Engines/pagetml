@@ -77,11 +77,13 @@ is the flip side of that, and exactly why presentation mode locks them.
 
 ## Bugs and requests
 
-Open an [issue](../../issues). For pagination bugs, **attach the HTML file** if
-you can — the layout problem usually lives in the document.
+Open an [issue](../../issues) — that's the support channel. For pagination bugs,
+**attach the HTML file** if you can; the layout problem usually lives in the
+document.
 
-Found a way out of the document sandbox? Please report it privately — see
-[SECURITY.md](SECURITY.md).
+Found a way out of the document sandbox? Please report it privately through
+GitHub's [private vulnerability reporting](../../security/advisories/new) rather
+than an issue — see [SECURITY.md](SECURITY.md).
 
 ## How it works
 
@@ -103,6 +105,4 @@ the code, but it carries no rights to copy, modify, or redistribute.
 **This version is free** to use, personally and commercially, and stays free for
 anyone who has it. See [LICENSE.md](LICENSE.md).
 
-## Contact
-
-⚠️ *Add a support email and the PageTML website URL.*
+Made by [Quiet Engines](https://quiet-engines.com/pagetml).
