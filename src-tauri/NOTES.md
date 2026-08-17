@@ -32,13 +32,19 @@ produces a self-contained `.app` (embedded assets — works offline) and `.dmg`.
 Developer ID signing + notarization are wired via env at build time (see the
 signing note below); local builds are ad-hoc signed.
 
-Still native-unverified: dock-icon drag-drop, and the QE-1431 follow-up below.
+Still native-unverified: dock-icon drag-drop.
 
-**WKWebView CSP finding (QE-1431):** WebKit does not stop `connect-src`
-traffic — a `no-cors` fetch leaves despite the CSP header (see README go/no-go
-section). The `pagetml://` CSP header is necessary but not sufficient on
-macOS: add a `WKContentRuleList` blocking non-`pagetml://` loads, relaxed by
-the per-file remote toggle.
+**WKWebView `connect-src` — resolved (QE-1431 / QE-1475).** An earlier pass
+found a `no-cors` fetch leaving despite the CSP header, and proposed a
+`WKContentRuleList` gate as a follow-up. That finding was a **harness artifact**:
+it reproduces in Playwright's bundled WebKit, not in the system WKWebView the
+app actually ships on, which enforces `connect-src` at the request level. Checked
+natively against the real webview; QE-1475 was closed as unnecessary and **no
+native gate is needed**. The `pagetml://` CSP header is sufficient on macOS.
+
+`tests/sandbox.spec.ts` pins this as a positive assertion on the WebKit branch,
+so if Playwright's WebKit is ever fixed upstream the test fails exactly there and
+that branch can be retired.
 
 ## First run
 
@@ -125,10 +131,6 @@ the harness iterates fixtures, runs the checks, and posts them to the
 test-only (set solely by `scripts/verify-frag.sh`). Negative-control-checked:
 a fabricated clipping offender makes it fail. Needs a display (like the other
 native tests).
-
-## Remaining TODO
-
-- **`WKContentRuleList` network gate** (see CSP finding above).
 
 ## Persistent store (QE-1434)
 
