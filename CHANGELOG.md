@@ -7,8 +7,6 @@ All notable changes to PageTML are recorded here. Versions follow
 
 First public release. Requires macOS 12 (Monterey) or later on Apple Silicon.
 
-⚠️ *Set the release date here when the tag is cut.*
-
 ### Reading
 
 - Opens a local `.html`/`.htm` file and paginates it into discrete pages sized
