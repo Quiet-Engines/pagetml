@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How do I use PageTML?
+    url: https://github.com/Quiet-Engines/pagetml/blob/main/docs/help.md
+    about: Keys, presentation mode, remote resources, and troubleshooting.
+  - name: Security vulnerability
+    url: https://github.com/Quiet-Engines/pagetml/blob/main/SECURITY.md
+    about: Please report sandbox escapes privately, not as a public issue.

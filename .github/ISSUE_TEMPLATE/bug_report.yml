@@ -1,0 +1,62 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a **pagination or layout** problem, attaching the HTML file
+        is the single most useful thing you can do — the issue almost always
+        lives in the document.
+
+  - type: textarea
+    id: document
+    attributes:
+      label: The document
+      description: >
+        Drag the .html file in here (zip it if GitHub rejects the extension).
+        If you can't share it, describe what it contains — a Google Docs export,
+        a Markdown render, an app-style page, tall images, tables?
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PageTML version
+      description: PageTML ▸ About PageTML
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: display
+    attributes:
+      label: Window and display
+      description: >
+        Pagination depends on window size, so this matters more than the OS
+        version. Roughly how big was the window, and were you on the built-in
+        screen or an external one?
+      placeholder: "Half-width on a 14in MacBook Pro; also tried fullscreen on a 4K external"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: "14.5 (Sonoma), M2"
+
+  - type: checkboxes
+    id: remote
+    attributes:
+      label: Settings
+      options:
+        - label: The **Remote** toggle was on for this document
+        - label: It happened in presentation mode

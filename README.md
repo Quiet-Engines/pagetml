@@ -1,135 +1,108 @@
 # PageTML
 
-A standalone HTML reader and presenter for macOS. It opens a local `.html`
-document and presents it as discrete, navigable **pages** — like a slide deck or
-a PDF reader — instead of one long scroll. Built for presenting to an audience
+**Read and present HTML like a document, not a scroll.**
+
+PageTML opens a local `.html` file and lays it out as discrete, navigable
+pages — like a PDF reader or a slide deck. Built for presenting to an audience
 and for distraction-free reading.
 
-The idea: browsers already render HTML/CSS perfectly; what they lack is
-*pagination*. PageTML layers the pagination and presenter experience on top of
-the system web engine (WKWebView) rather than shipping a new rendering engine.
+⚠️ *Add a screenshot or a short demo GIF here — a page turn and presentation mode.
+Most people decide from it alone.*
 
-## Install (macOS)
+[**Download for macOS →**](../../releases/latest)
 
-Requires **macOS 12 (Monterey) or later** on Apple Silicon.
-
-1. Download the latest `PageTML_*.dmg` from the [Releases](../../releases) page.
-2. Open the `.dmg` and drag **PageTML** into your Applications folder.
-3. Open a document — right-click a `.html` file → **Open With ▸ PageTML**, use
-   **File ▸ Open** (`⌘O`), or drag the file onto the window.
-
-Release builds are Developer ID-signed and notarized, so they open without
-Gatekeeper warnings.
-
-## Using it
-
-- **Open** a local `.html`/`.htm` file (drag-drop, `⌘O`, or "Open With"). Its
-  relative assets — images, CSS, fonts — load from the file's own folder, and
-  your last-read position is remembered per document.
-- **Read**: one page at a time, sized to the window. `→` / `Space` / two-finger
-  swipe / scroll to advance, `←` to go back, `Home`/`End` for first/last.
-- **Present** (`F5`): fills the screen, hides the chrome, and freezes pagination
-  so your page numbers don't shift. `B`/`W` for a black/white screen, type a
-  number + `Enter` to jump, `Esc` to exit.
-- **Remote resources are off by default** — an opened document can't reach the
-  internet unless you flip the per-file **Remote** toggle. This keeps an
-  untrusted file from phoning home.
-
-Full guide: **[docs/help.md](docs/help.md)**.
+Requires **macOS 12 (Monterey) or later** on **Apple Silicon** — an M1 or newer
+Mac. Intel Macs are not supported. *(Apple menu ▸ About This Mac shows which you
+have.)*
 
 ---
 
-## Development
+## Why
 
-PageTML is a [Tauri](https://tauri.app) v2 app: a shared TypeScript pagination
-engine that runs inside a sandboxed content frame, a trusted "chrome" UI that
-drives it over a versioned `postMessage` schema, and a Rust shell (`src-tauri/`)
-that serves documents over a custom `pagetml://` protocol and handles native
-open / menus / fullscreen / persistence.
+Browsers render HTML and CSS beautifully. What they don't do is *paginate* — a
+long document is one endless scroll, and there's no clean way to present one.
 
-```
-src/engine/      Pagination engine — multicol flow, measurement, anchors, normalization
-src/chrome/      Trusted app UI (start screen, reading & presentation modes)
-src/content/     The runtime injected alongside the user's document
-src-tauri/       Rust shell — pagetml:// serving, sandbox, persistence, native integration
-harness/         Drives the engine in an iframe + invariant checks
-public/fixtures/ The pagination fixture corpus
-tests/           Playwright specs
-```
+PageTML layers pagination and a presenter experience on top of the system web
+engine (WKWebView), rather than shipping a new rendering engine. Your document
+renders exactly as a browser would render it; it just arrives in pages.
 
-### The pagination technique
+## What it does
 
-CSS multi-column, the approach proven by EPUB renderers such as Readium:
+- **Pages, not scroll.** Content flows into fixed-size pages sized to your
+  window, using the browser's own line-breaking and fragmentation. Resize and it
+  repaginates live, keeping you on the same *content* — not the same page number.
+- **Presentation mode** (`F5`). Fills the screen, hides all chrome, and **locks
+  pagination** so page boundaries stay frozen for the whole talk. Type a number
+  to jump; `B`/`W` for a black or white screen; clickers work.
+- **Position is remembered per document.** Reopen a file and land where you left
+  off — tracked by content anchor, so it survives a resize or a restart.
+- **Offline by default.** An opened document can't reach the network, read other
+  files, or touch the app. Flip the per-file **Remote** toggle for documents you
+  trust.
+- **No accounts, no telemetry, no cloud.** It's a local app that reads local
+  files.
 
-- The document body is wrapped in a **flow** element styled as a multi-column
-  box whose `column-width` equals the viewport width and whose height is fixed
-  to the viewport height (`column-fill: auto`). The engine flows content into
-  fixed-size columns — **each column is one page** — using the browser's own
-  line-breaking, float, and fragmentation logic.
-- Extra columns overflow to the right; the viewport clips them. **Page turns
-  translate the flow horizontally** by whole page widths.
-- Author `break-before/after/inside` rules flow through natively via column
-  fragmentation.
+## Install
 
-Two design decisions carried throughout:
+1. Download the latest `PageTML_*.dmg` from [Releases](../../releases/latest).
+2. Open the `.dmg` and drag **PageTML** to your Applications folder.
+3. Open a document: right-click a `.html` file → **Open With ▸ PageTML**, use
+   **File ▸ Open** (`⌘O`), or drag the file onto the window.
 
-- **All measurement goes through the flow, not the viewport.** An element's rect
-  and the flow's rect are both shifted by the flow's current transform (even
-  mid page-turn), so measuring child-relative-to-flow cancels the transform
-  exactly.
-- **Position is a content anchor, never a page number.** Page numbers are a
-  function of window size; a CFI-like path + offset survives repagination and
-  restart. So the same content legitimately lands on a different page number
-  after a resize — which is why presentation mode *locks* pagination.
+Builds are Developer ID-signed and notarized by Apple, so they open without
+Gatekeeper warnings.
 
-### Build
+## Keys
 
-```bash
-npm install
-npm run tauri dev        # run the app over the Vite dev server
-npm run build:runtime    # rebuild the injected content runtime after editing it
-npx tauri build          # produce a local .app/.dmg (ad-hoc signed)
-npm run build:release    # signed + notarized build (needs Apple creds — see src-tauri/NOTES.md)
-```
+| Action | Keys |
+| --- | --- |
+| Next / previous page | `→` / `←` · `Space` · scroll · swipe · click a page edge |
+| Enter presentation | `F5` |
+| Jump to page *(presenting)* | type the number, then `Enter` |
+| Black / white screen *(presenting)* | `B` / `W` |
+| Exit | `Esc` |
 
-### Tests
+Every binding, including the presentation-mode set:
+[**docs/help.md**](docs/help.md).
 
-```bash
-npm run typecheck
-npm test                 # engine invariants, both engines (needs Chromium + WebKit)
-npm run test:chromium    # Chromium only
-npm run test:webkit      # WebKit only
-```
+## Not supported
 
-The Playwright suite never loads the native shell, so the Rust shell has its own
-layered coverage (macOS; the driven ones need a desktop/display):
+Intel Macs · Windows · auto-update · live URLs · EPUB · authored slide decks.
 
-```bash
-npm run test:shell       # headless Rust unit tests: traversal guard, store
-                         # durability/identity, runtime-injection contract
-npm run test:native      # driven smoke — the real binary boots the runtime and paginates
-npm run test:fileassoc   # opens an .html through Launch Services → RunEvent::Opened
-npm run test:frag        # the invariant suite inside the REAL system WKWebView
-```
+**Why not just export a PDF?** A PDF's pages are fixed at export time. PageTML
+paginates live against your actual window, so the same document reflows to fit a
+laptop, a projector, or a resized window — and presentation mode freezes the
+boundaries only while you're presenting. Page counts differing between machines
+is the flip side of that, and exactly why presentation mode locks them.
 
-The invariants asserted for every fixture at multiple window sizes:
+## Bugs and requests
 
-1. **No clipping** — no line/fragment straddles a page boundary or exceeds a page.
-2. **Reachability** — every leaf's fragments land on a counted page.
-3. **Anchor stability** — after a resize round-trip, an anchor still resolves to
-   a page containing its target element.
+Open an [issue](../../issues). For pagination bugs, **attach the HTML file** if
+you can — the layout problem usually lives in the document.
 
-### Engine validation
+Found a way out of the document sandbox? Please report it privately — see
+[SECURITY.md](SECURITY.md).
 
-The multicol technique is validated on both Chromium (the WebView2 reference)
-and WebKit. Two engine differences were absorbed along the way: sticky elements
-normalize to `static` (WebKit pins an abspos static position in a multicol to
-column 1), and a page holding only a leaf's spill-over tail falls back to that
-leaf for its anchor. The invariants are also validated inside the **real system
-WKWebView** the app ships on — not just Playwright's bundled WebKit, which
-differs from it — via `npm run test:frag`.
+## How it works
 
-### Releasing
+The source is here to read. The document body is wrapped in a CSS multi-column
+box whose column width is the viewport width, so **each column is one page** and
+the browser's own line-breaking and fragmentation does the layout. Page turns
+translate the flow horizontally.
 
-See **[docs/RELEASING.md](docs/RELEASING.md)** for cutting a signed, notarized
-GitHub release.
+Two decisions carry most of the weight — measurement goes through the flow rather
+than the viewport, and position is stored as a content anchor rather than a page
+number. Both are written up, along with build instructions and the test layers,
+in **[docs/development.md](docs/development.md)**.
+
+## Source and license
+
+PageTML is source-available proprietary software, not open source — you can read
+the code, but it carries no rights to copy, modify, or redistribute.
+
+**This version is free** to use, personally and commercially, and stays free for
+anyone who has it. See [LICENSE.md](LICENSE.md).
+
+## Contact
+
+⚠️ *Add a support email and the PageTML website URL.*
