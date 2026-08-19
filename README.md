@@ -6,8 +6,9 @@ PageTML opens a local `.html` file and lays it out as discrete, navigable
 pages — like a PDF reader or a slide deck. Built for presenting to an audience
 and for distraction-free reading.
 
-⚠️ *Add a screenshot or a short demo GIF here — a page turn and presentation mode.
-Most people decide from it alone.*
+<!-- ⚠️ TODO: screenshot or demo GIF goes here — a page turn, entering
+     presentation mode, and a window resize repaginating. That last beat is the
+     answer to "why not just export a PDF?". Most people decide from it alone. -->
 
 [**Download for macOS →**](../../releases/latest)
 
